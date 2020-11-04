@@ -1,0 +1,3 @@
+/home/ivr/catkin_ws/src/ivr_assignment/worlds/build/CMakeFiles/rebuild_cache.dir
+/home/ivr/catkin_ws/src/ivr_assignment/worlds/build/CMakeFiles/edit_cache.dir
+/home/ivr/catkin_ws/src/ivr_assignment/worlds/build/CMakeFiles/ivr_ambient.dir

@@ -1,0 +1,169 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="myrobot">
+
+  <link name="dummy">
+   </link>
+
+  <link name="base">
+    <visual>
+      <geometry>
+        <cylinder length="0.1" radius="0.1"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.05" />
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.1" radius="0.1"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.05" />
+    </collision>
+    <inertial>
+      <mass value="100000000"/>
+      <inertia ixx="5830000.3" ixy="0.0" ixz="0.0" iyy="5830000.3" iyz="0.0" izz="11250000"/>
+    </inertial>
+  </link>
+
+  <link name="basex1">
+    <visual>
+      <geometry>
+        <cylinder length="0.001" radius="0.001"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.0005" />
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.0005" ixy="0.0" ixz="0.0" iyy="0.0005" iyz="0.0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+
+  <link name="basey1">
+    <visual>
+      <geometry>
+        <cylinder length="0.001" radius="0.001"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.0005" />
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.0005" ixy="0.0" ixz="0.0" iyy="0.0005" iyz="0.0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+
+
+  <link name="basez1">
+    <visual>
+      <geometry>
+        <cylinder length="0.001" radius="0.001"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.0005" />
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.0005" ixy="0.0" ixz="0.0" iyy="0.0005" iyz="0.0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <link name="Box">
+    <visual>
+      <geometry>
+        <box size="0.8 0.4 0.4"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.3" />
+    <material name="blue">
+       <color rgba="0 0 0.8 1"/>
+    </material>
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.0005" ixy="0.0" ixz="0.0" iyy="0.0005" iyz="0.0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+ 
+
+<!--Joints-->
+
+  <joint name="dummy_joint" type="fixed">
+     <parent link="dummy"/>
+     <child link="base"/>
+  </joint>
+
+
+  <joint name="move_x2" type="prismatic">
+    <parent link="base"/>
+    <child link="basex1"/>
+    <limit effort="10000.0" lower="-10" upper="10" velocity="5"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+  <joint name="move_y2" type="prismatic">
+    <parent link="basex1"/>
+    <child link="basey1"/>
+    <limit effort="10000.0" lower="-10" upper="10" velocity="5"/>
+    <origin rpy="0 0 1.57079632679" xyz="0 0 0"/>
+  </joint>
+
+
+  <joint name="move_z2" type="prismatic">
+    <parent link="basey1"/>
+    <child link="basez1"/>
+    <limit effort="10000.0" lower="0" upper="10" velocity="5"/>
+    <origin rpy="0 -1.57079632679 0" xyz="0 0 0"/>
+  </joint>
+
+  <joint name="target" type="fixed">
+    <parent link="basez1"/>
+    <child link="Box"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+<!--Transmissions-->
+
+  <transmission name="joint1">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="move_x2">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_move_x">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <transmission name="joint2">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="move_y2">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_move_y">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <transmission name="joint3">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="move_z2">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_move_z">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+<!--Gazebo Plugins-->
+
+  <gazebo>
+    <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+    </plugin>
+  </gazebo>
+
+ 
+   <gazebo reference="Box">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+
+</robot>

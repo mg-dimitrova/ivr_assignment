@@ -1,0 +1,18 @@
+joint_state_controller:
+ type: joint_state_controller/JointStateController
+ publish_rate: 50
+
+
+x2_position_controller:
+ type: position_controllers/JointPositionController
+ joint: move_x2
+ pid: {p: 100.0, i: 50.0, d: 10.0}
+y2_position_controller:
+ type: position_controllers/JointPositionController
+ joint: move_y2
+ pid: {p: 100.0, i: 50.0, d: 10.0}
+z2_position_controller:
+ type: position_controllers/JointPositionController
+ joint: move_z2
+ pid: {p: 100.0, i: 50.0, d: 10.0}
+

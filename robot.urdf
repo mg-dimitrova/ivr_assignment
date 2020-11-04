@@ -1,0 +1,318 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="myrobot">
+
+  <link name="dummy">
+   </link>
+
+  <link name="base">
+    <visual>
+      <geometry>
+        <cylinder length="0.5" radius="1.5"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.5" radius="1.5"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    </collision>
+    <inertial>
+      <mass value="1000"/>
+      <inertia ixx="583.3" ixy="0.0" ixz="0.0" iyy="583.3" iyz="0.0" izz="1125"/>
+    </inertial>
+  </link>
+
+  <link name="link0">
+    <visual>
+      <geometry>
+        <cylinder length="2.5" radius="0.35"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 1.25" />
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="2.5" radius="0.35"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 1.25" />
+    </collision>
+    <inertial>
+      <mass value="5"/>
+      <inertia ixx="1.819791667" ixy="0.0" ixz="0.0" iyy="1.819791667" iyz="0.0" izz="0.30625"/>
+    </inertial>
+  </link>
+
+
+  <link name="link1">
+    <visual>
+      <geometry>
+        <cylinder length="3.5" radius="0.2"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 1.75" />
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="3.5" radius="0.2"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 1.75" />
+    </collision>
+    <inertial>
+      <mass value="3"/>
+      <inertia ixx="2.28" ixy="0.0" ixz="0.0" iyy="2.28" iyz="0.0" izz="0.06"/>
+    </inertial>
+  </link>
+
+  <link name="link2">
+    <visual>
+      <geometry>
+        <cylinder length="3" radius="0.1"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 1.5" />
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="3" radius="0.1"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 1.5" />
+    </collision>
+    <inertial>
+      <mass value="1"/>
+      <inertia ixx="0.335833333" ixy="0.0" ixz="0.0" iyy="0.335833333" iyz="0.0" izz="0.005"/>
+    </inertial>
+  </link>
+
+  <link name="sphere_base">
+    <visual>
+      <geometry>
+        <sphere radius="0.5"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    <material name="yellow">
+       <color rgba="0.8 0.8 0 1"/>
+    </material>
+    </visual>
+    <collision>
+      <geometry>
+       <sphere radius="0.5"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    </collision>
+    <inertial>
+      <mass value="0.00001"/>
+      <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000005"/>
+    </inertial>
+  </link>
+
+  <link name="sphere0">
+    <visual>
+      <geometry>
+        <sphere radius="0.5"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    <material name="blue">
+       <color rgba="0 0 0.8 1"/>
+    </material>
+    </visual>
+    <collision>
+      <geometry>
+       <sphere radius="0.5"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.25" />
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <link name="sphere1">
+    <visual>
+      <geometry>
+        <sphere radius="0.3"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.15" />
+    <material name="green">
+       <color rgba="0 0.8 0 1"/>
+    </material>
+    </visual>
+    <collision>
+      <geometry>
+       <sphere radius="0.3"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.15" />
+    </collision>
+    <inertial>
+      <mass value="0.00001"/>
+      <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000005"/>
+    </inertial>
+  </link>
+
+  <link name="sphere2">
+    <visual>
+      <geometry>
+        <sphere radius="0.3"/>
+      </geometry>
+    <origin rpy="0 0 0"  xyz="0 0 0.15" />
+    <material name="red">
+       <color rgba="0.8 0 0 1"/>
+    </material>
+    </visual>
+    <collision>
+      <geometry>
+       <sphere radius="0.3"/>
+      </geometry>
+      <origin rpy="0 0 0"  xyz="0 0 0.15" />
+    </collision>
+    <inertial>
+      <mass value="0.00001"/>
+      <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000005"/>
+    </inertial>
+  </link>
+
+<!--Joints-->
+
+  <joint name="dummy_joint" type="fixed">
+     <parent link="dummy"/>
+     <child link="base"/>
+  </joint>
+
+
+  <joint name="base_to_link0" type="revolute">
+    <parent link="base"/>
+    <child link="link0"/>
+    <origin rpy="0 0 0" xyz="0 0 0.5"/>
+    <limit effort="1000.0" lower="-${pi}" upper="${pi}" velocity="5"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <joint name="sphere_base_to_link0" type="fixed">
+    <parent link="link0"/>
+    <child link="sphere_base"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+
+  <joint name="link0_to_link1" type="revolute">
+    <parent link="link0"/>
+    <child link="sphere0"/>
+    <origin rpy="0 0 0" xyz="0 0 2.5"/>
+    <limit effort="1000.0" lower="-${pi/2}" upper="${pi/2}" velocity="5"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <joint name="link0_to_link1_2" type="revolute">
+    <parent link="sphere0"/>
+    <child link="link1"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <limit effort="1000.0" lower="-${pi/2}" upper="${pi/2}" velocity="5"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <joint name="link1_to_link2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin rpy="0 0 0" xyz="0 0 3.5"/>
+    <limit effort="1000.0" lower="-${pi/2}" upper="${pi/2}" velocity="5"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <joint name="sphere1_to_link2" type="fixed">
+    <parent link="link2"/>
+    <child link="sphere1"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+
+  <joint name="sphere2_to_link2" type="fixed">
+    <parent link="link2"/>
+    <child link="sphere2"/>
+    <origin rpy="0 0 0" xyz="0 0 3"/>
+  </joint>
+
+<!--Transmissions-->
+
+  <transmission name="trans_base_to_link0">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="base_to_link0">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_base_to_link0">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <transmission name="trans_link0_to_link1">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="link0_to_link1">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_link0_to_link1">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <transmission name="trans_link0_to_link1_2">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="link0_to_link1_2">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_link0_to_link1_2">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+  <transmission name="trans_link1_to_link2">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="link1_to_link2">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_link1_to_link2">
+      <mechanicalReduction>1</mechanicalReduction>
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </actuator>
+  </transmission>
+
+
+<!--Gazebo Plugins-->
+
+  <gazebo>
+    <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+    </plugin>
+  </gazebo>
+
+  <gazebo reference="base">
+    <material>Gazebo/White</material>
+  </gazebo>
+
+  <gazebo reference="link0">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="link1">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="link2">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="sphere_base">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="sphere0">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="sphere1">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="sphere2">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+</robot>

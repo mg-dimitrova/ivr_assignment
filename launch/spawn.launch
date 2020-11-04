@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+<!--Spawn empty world-->
+
+  <arg name="world" default="empty"/> 
+  <arg name="paused" default="false"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="true"/>
+  <arg name="headless" default="false"/>
+  <arg name="debug" default="false"/>
+  
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find ivr_assignment)/worlds/myworld.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="gui" value="$(arg gui)"/>
+    <arg name="headless" value="$(arg headless)"/>
+    <arg name="debug" value="$(arg debug)"/>
+  </include>
+
+<!--Spawn robot-->
+  <group ns="/robot">
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ivr_assignment)/urdf/robot.urdf'"/>
+
+	<arg name="x" default="0"/>
+	<arg name="y" default="0"/>
+	<arg name="z" default="0"/>
+
+	<node name="my_robot_spawn" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model my_robot -x $(arg x) -y $(arg y) -z $(arg z)" />
+
+<!-- Load joint controller configurations from YAML file to parameter server -->          
+        <rosparam command="load" file="$(find ivr_assignment)/config/joints.yaml" />
+
+<!-- load the controllers -->
+	<node name="controller_spawner" pkg="controller_manager" type="spawner"
+		respawn = "false" output ="screen" ns="/robot"
+		args="joint_state_controller
+		joint1_position_controller		
+		joint2_position_controller
+                joint3_position_controller
+                joint4_position_controller
+		--timeout 60">
+	</node>
+
+<!-- convert joint states to TF transforms for rviz, etc -->
+	<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
+	   respawn="false" output="screen">
+           <remap from="/joint_states" to="/robot/joint_states" />
+	</node>
+         
+  </group>
+
+<!--Spawn object-->
+  <group ns="/target">
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ivr_assignment)/urdf/object.urdf'"/>
+
+	<arg name="x" default="0"/>
+	<arg name="y" default="0"/>
+	<arg name="z" default="0"/>
+
+	<node name="my_robot_spawn2" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model my_target -x $(arg x) -y $(arg y) -z $(arg z)" />
+
+<!-- Load joint controller configurations from YAML file to parameter server -->          
+        <rosparam command="load" file="$(find ivr_assignment)/config/joints2.yaml" />
+
+<!-- load the controllers -->
+	<node name="controller_spawner2" pkg="controller_manager" type="spawner"
+		respawn = "false" output ="screen" ns="/target"
+		args="joint_state_controller
+		x_position_controller		
+		y_position_controller
+                z_position_controller
+		--timeout 60">
+	</node>
+
+<!-- convert joint states to TF transforms for rviz, etc -->
+	<node name="robot_state_publisher2" pkg="robot_state_publisher" type="robot_state_publisher"
+	   respawn="false" output="screen">
+           <remap from="/joint_states" to="/target/joint_states" />
+	</node>
+         
+  </group>
+
+<!--Spawn object 2-->
+  <group ns="/target2">
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ivr_assignment)/urdf/object2.urdf'"/>
+
+	<arg name="x" default="0"/>
+	<arg name="y" default="0"/>
+	<arg name="z" default="0"/>
+
+	<node name="my_robot_spawn3" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model my_target2 -x $(arg x) -y $(arg y) -z $(arg z)" />
+
+<!-- Load joint controller configurations from YAML file to parameter server -->          
+        <rosparam command="load" file="$(find ivr_assignment)/config/joints3.yaml" />
+
+<!-- load the controllers -->
+	<node name="controller_spawner3" pkg="controller_manager" type="spawner"
+		respawn = "false" output ="screen" ns="/target2"
+		args="joint_state_controller
+		x2_position_controller	
+		y2_position_controller
+                z2_position_controller
+		--timeout 60">
+	</node>
+
+<!-- convert joint states to TF transforms for rviz, etc -->
+	<node name="robot_state_publisher3" pkg="robot_state_publisher" type="robot_state_publisher"
+	   respawn="false" output="screen">
+           <remap from="/joint_states" to="/target2/joint_states" />
+	</node>
+         
+  </group>
+
+<!--Spawn Camera-->
+  <group ns="/camera1">
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ivr_assignment)/urdf/camera.urdf'"/>
+
+	<arg name="x" default="18"/>
+	<arg name="y" default="0"/>
+	<arg name="z" default="0"/>
+        <arg name="roll" default="0"/>
+        <arg name="pitch" default="0"/>
+        <arg name="yaw" default="3.141592"/>
+
+	<node name="my_camera_spawn" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model my_camera -x $(arg x) -y $(arg y) -z $(arg z) -R $(arg roll) -P $(arg pitch) -Y $(arg yaw)" />
+  </group>
+
+<!--Spawn Second Camera-->
+  <group ns="/camera2">
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ivr_assignment)/urdf/camera2.urdf'"/>
+
+	<arg name="x" default="0"/>
+	<arg name="y" default="-18"/>
+	<arg name="z" default="0"/>
+        <arg name="roll" default="0"/>
+        <arg name="pitch" default="0"/>
+        <arg name="yaw" default="1.57079632679"/>
+
+	<node name="my_camera_spawn2" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model my_camera2 -x $(arg x) -y $(arg y) -z $(arg z) -R $(arg roll) -P $(arg pitch) -Y $(arg yaw)" />
+  </group>
+
+<!--Spawn Target Actuator-->
+  <group ns="/target_control"> 
+        <node name="target_move" pkg="ivr_assignment" type="target_move.py" args="$(find ivr_assignment)/src/target_move.py" />
+  </group>
+
+
+</launch>
