@@ -23,27 +23,146 @@ class image_converter:
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
+    #initiate the joint publishers
+    self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
+    # initialize the variable for the starting time
+    self.time_joint3 = rospy.get_time()
 
+  #define sinusoidal trajectory for task 2.1
+  def position_joint3(self):
+    # get current time
+    curr_time = np.array([rospy.get_time() - self.time_joint3])
+    #joint 3 rotates around the y axis, the movement would be visible from camera 2 in the zx plane
+    j3 = float((np.pi/2) * np.sin(np.pi/18 * curr_time))
+    return j3
+
+  def detect_yellow(self, image):
+    #converting image from BGR to HSV color-space
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    #define boundaries for yellow in HSV
+    #the boundaries are found using the method described in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_colorspaces/py_colorspaces.html?highlight=inrange
+    lower = np.array([20,100,100])
+    upper = np.array([40,255,255])
+    #generating mask to get yellow joint
+    mask = cv2.inRange(hsv, lower, upper)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    cnt = contours[0]
+    #estimate moments
+    M = cv2.moments(cnt)
+    #find the centre of mass from the moments estimation
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])
+
+  def detect_blue(self, image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower = np.array([110,50,50])
+    upper = np.array([130,255,255])
+    mask = cv2.inRange(hsv, lower, upper)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    cnt = contours[0]
+    M = cv2.moments(cnt)
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])
+
+  def detect_green(self, image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower = np.array([50, 100, 100])
+    upper = np.array([70,255,255])
+    mask = cv2.inRange(hsv, lower, upper)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    cnt = contours[0]
+    M = cv2.moments(cnt)
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])
+
+  def detect_red(self, image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower = np.array([0,100,100])
+    upper = np.array([10, 255, 255])
+    mask = cv2.inRange(hsv, lower, upper)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    cnt = contours[0]
+    M = cv2.moments(cnt)
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])
+
+  def detect_orange(self, image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower = np.array([9,100,100])
+    upper = np.array([29, 255, 255])
+    mask = cv2.inRange(hsv, lower, upper)
+    #cv2.imwrite('mask_orange.png', mask)
+    '''This part has to be changed to recognize whether it is a circle or not'''
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    cnt = contours[0]
+    M = cv2.moments(cnt)
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])
+
+  def detect_joint_angles(self, image):
+    center = self.detect_yellow(image)
+    circle1Pos = self.detect_blue(image)
+    circle2Pos = self.detect_green(image)
+    circle3Pos = self.detect_red(image)
+    ja1 = np.arctan((center[0]-circle1Pos[0])/(center[1]-circle1Pos[1]))
+    ja2 = np.arctan((circle1Pos[0]-circle2Pos[0])/(circle1Pos[1]-circle2Pos[1]))-ja1
+    ja3 = np.arctan((circle2Pos[0]-circle3Pos[0])/(circle2Pos[1]-circle3Pos[1]))-ja1-ja2
+    return np.array([ja1, ja2, ja3])
 
   # Recieve data, process it, and publish
   def callback2(self,data):
-    # Recieve the image
+  # Recieve the image
     try:
       self.cv_image2 = self.bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
       print(e)
+
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy2.png', self.cv_image2)
-    im2=cv2.imshow('window2', self.cv_image2)
-    cv2.waitKey(1)
+    #im2=cv2.imshow('window2', self.cv_image2)
+    #cv2.waitKey(1)
+
+    #detect joints angles from camera
+    self.joints = Float64MultiArray()
+    self.joints.data = self.detect_joint_angles(self.cv_image2)
+
+    #send control commands to joints for task 2.1
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3()
 
     # Publish the results
-    try: 
+    try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
+      self.robot_joint3_pub.publish(self.joint3)
     except CvBridgeError as e:
       print(e)
 
-# call the class
+    # call the class
 def main(args):
   ic = image_converter()
   try:
@@ -54,6 +173,4 @@ def main(args):
 
 # run the code if the node is called
 if __name__ == '__main__':
-    main(sys.argv)
-
-
+  main(sys.argv)
