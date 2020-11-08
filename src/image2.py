@@ -33,7 +33,7 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
     cx = int(M['m10']/M['m00'])
     cy = int(M['m01']/M['m00'])
     return np.array([cx, cy])  
-    
+
 class image_converter:
 
   YELLOW_LOWER = np.array([20,100,100])
@@ -111,8 +111,8 @@ class image_converter:
 
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy2.png', self.cv_image2)
-    #im2=cv2.imshow('window2', self.cv_image2)
-    #cv2.waitKey(1)
+    im2=cv2.imshow('window2', self.cv_image2)
+    cv2.waitKey(1)
 
     #detect joints angles from camera
     self.joints = Float64MultiArray()
