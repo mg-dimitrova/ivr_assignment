@@ -155,24 +155,24 @@ class image_converter:
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy1.png', self.cv_image1)
 
-    #im1=cv2.imshow('window1', self.cv_image1)
-    #cv2.waitKey(1)
+    im1=cv2.imshow('window1', self.cv_image1)
+    cv2.waitKey(1)
 
     #estimate the joints from camera
-    self.joints = Float64MultiArray()
-    self.joints.data = self.detect_joint_angles(self.cv_image1)
+    #self.joints = Float64MultiArray()
+    #self.joints.data = self.detect_joint_angles(self.cv_image1)
 
     #psend control commands to joints for task 2.1
-    self.joint2 = Float64()
-    self.joint2.data = self.position_joint2()
-    self.joint4 = Float64()
-    self.joint4.data = self.position_joint4()
+    #self.joint2 = Float64()
+    #self.joint2.data = self.position_joint2()
+    #self.joint4 = Float64()
+    #self.joint4.data = self.position_joint4()
 
     # Publish the results
     try:
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
-      self.robot_joint2_pub.publish(self.joint2)
-      self.robot_joint4_pub.publish(self.joint4)
+      #self.robot_joint2_pub.publish(self.joint2)
+      #self.robot_joint4_pub.publish(self.joint4)
     except CvBridgeError as e:
       print(e)
 
