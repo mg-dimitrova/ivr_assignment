@@ -123,7 +123,7 @@ class image_converter:
       approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
       area = cv2.contourArea(contour)
       print(len(approx))
-      if len(approx)==4: 
+      if len(approx)<8: 
         print("square") 
       elif ((len(approx) > 8) & (area > 30) ):
         print('Circle found')
