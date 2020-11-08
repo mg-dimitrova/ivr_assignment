@@ -32,7 +32,25 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
     #find the centre of mass from the moments estimation
     cx = int(M['m10']/M['m00'])
     cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])  
+    return np.array([cx, cy])
+
+def detect_colour2(image, lower_colour_boundary, upper_colour_boundary):
+    #DOESN'T SOLVE FOR OVERLAPPING COLOURS
+
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    return contours
 
 class image_converter:
 
@@ -96,6 +114,22 @@ class image_converter:
     circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
     circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
+
+    contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+
+
+    #Finds the circle orange object
+    for contour in contours:
+      approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+      area = cv2.contourArea(contour)
+      print(len(approx))
+      if len(approx)==4: 
+        print("square") 
+      elif ((len(approx) > 8) & (area > 30) ):
+        print('Circle found')
+    
+
+    #print(len(contours))
 
     #object_to_be_tracked = detect_colour(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
 
