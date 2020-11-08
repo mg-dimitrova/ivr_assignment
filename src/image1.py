@@ -15,7 +15,7 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
 
     #converting image from BGR to HSV color-space (easier to segment an image based on its color)
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    #generating mask to get yellow joint
+
     mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
     #generate kernel for morphological transformation
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
@@ -25,7 +25,7 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
     closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
     ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
     cnt = contours[0]
     #estimate moments
     M = cv2.moments(cnt)
@@ -97,6 +97,8 @@ class image_converter:
     circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
     circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
 
+    #object_to_be_tracked = detect_colour(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+
     #Getting divide by zero exception errors in some instances
     #Need to refactor this
     joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) 
@@ -114,8 +116,6 @@ class image_converter:
     
     self.joint2 = Float64()
     self.joint2.data = self.position_joint2(curr_time)
-    self.joint3 = Float64()
-    self.joint3.data = self.position_joint3(curr_time)
     self.joint4 = Float64()
     self.joint4.data = self.position_joint4(curr_time)
 
@@ -143,7 +143,6 @@ class image_converter:
     try:
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
       self.robot_joint2_pub.publish(self.joint2)
-      self.robot_joint3_pub.publish(self.joint3)
       self.robot_joint4_pub.publish(self.joint4)
     except CvBridgeError as e:
       print(e)

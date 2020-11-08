@@ -10,8 +10,46 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
+def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
+    #DOESN'T SOLVE FOR OVERLAPPING COLOURS
 
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    cnt = contours[0]
+    #estimate moments
+    M = cv2.moments(cnt)
+    #find the centre of mass from the moments estimation
+    cx = int(M['m10']/M['m00'])
+    cy = int(M['m01']/M['m00'])
+    return np.array([cx, cy])  
+    
 class image_converter:
+
+  YELLOW_LOWER = np.array([20,100,100])
+  YELLOW_UPPER = np.array([40,255,255])
+
+  BLUE_LOWER = np.array([110,50,50])
+  BLUE_UPPER = np.array([130,255,255])
+
+  GREEN_LOWER = np.array([50, 100, 100])
+  GREEN_UPPER = np.array([70,255,255])
+
+  RED_LOWER = np.array([0,100,100])
+  RED_UPPER = np.array([10, 255, 255])  
+
+  ORANGE_LOWER = np.array([9,100,100])
+  ORANGE_UPPER = np.array([29, 255, 255])
 
   # Defines publisher and subscriber
   def __init__(self):
@@ -36,103 +74,32 @@ class image_converter:
     j3 = float((np.pi/2) * np.sin(np.pi/18 * curr_time))
     return j3
 
-  def detect_yellow(self, image):
-    #converting image from BGR to HSV color-space
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    #define boundaries for yellow in HSV
-    #the boundaries are found using the method described in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_colorspaces/py_colorspaces.html?highlight=inrange
-    lower = np.array([20,100,100])
-    upper = np.array([40,255,255])
-    #generating mask to get yellow joint
-    mask = cv2.inRange(hsv, lower, upper)
-    #generate kernel for morphological transformation
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    #applying closing (dilation followed by erosion)
-    #dilation allows to close black spots inside the mask
-    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    #estimate moments
-    M = cv2.moments(cnt)
-    #find the centre of mass from the moments estimation
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_blue(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([110,50,50])
-    upper = np.array([130,255,255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_green(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([50, 100, 100])
-    upper = np.array([70,255,255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_red(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([0,100,100])
-    upper = np.array([10, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_orange(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([9,100,100])
-    upper = np.array([29, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    #cv2.imwrite('mask_orange.png', mask)
-    '''This part has to be changed to recognize whether it is a circle or not'''
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
+  
   def detect_joint_angles(self, image):
-    center = self.detect_yellow(image)
-    circle1Pos = self.detect_blue(image)
-    circle2Pos = self.detect_green(image)
-    circle3Pos = self.detect_red(image)
-    ja1 = np.arctan((center[0]-circle1Pos[0])/(center[1]-circle1Pos[1]))
-    ja2 = np.arctan((circle1Pos[0]-circle2Pos[0])/(circle1Pos[1]-circle2Pos[1]))-ja1
-    ja3 = np.arctan((circle2Pos[0]-circle3Pos[0])/(circle2Pos[1]-circle3Pos[1]))-ja1-ja2
-    return np.array([ja1, ja2, ja3])
+    center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
+
+    #object_to_be_tracked = detect_colour(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+
+    #Getting divide by zero exception errors in some instances
+    #Need to refactor this
+    joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) 
+                                / (center[1] - circle1Pos[1]))
+    joint_angle_2 = np.arctan((circle1Pos[0] - circle2Pos[0]) 
+                                / (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
+    joint_angle_3 = np.arctan((circle2Pos[0] - circle3Pos[0]) 
+                                / (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
+    
+    return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
+
+  def robot_clock_tick(self):
+    #psend control commands to joints for task 2.1
+    curr_time = np.array([rospy.get_time() - self.time_joint2])
+    
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
 
   # Recieve data, process it, and publish
   def callback2(self,data):
