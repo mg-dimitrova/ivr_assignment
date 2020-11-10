@@ -52,6 +52,21 @@ def detect_colour2(image, lower_colour_boundary, upper_colour_boundary):
     contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
     return contours
 
+def is_cube(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  if len(approx) < 8: 
+    return True
+  return False 
+
+def is_sphere(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  print(len(approx))
+  if ((len(approx) > 8) & (area > 30)):
+    return True
+  return False
+
 class image_converter:
 
   YELLOW_LOWER = np.array([20,100,100])
@@ -120,14 +135,19 @@ class image_converter:
 
     #Finds the circle orange object
     for contour in contours:
-      approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
-      area = cv2.contourArea(contour)
-      print(len(approx))
-      if len(approx)<8: 
-        print("square") 
-      elif ((len(approx) > 8) & (area > 30) ):
-        print('Circle found')
-    
+      if is_cube(contour):
+        print('Cube found at:')
+        M = cv2.moments(contour)
+        cube_coords = (int(M['m10']/M['m00']), int(M['m01']/M['m00']))
+        print(cube_coords)
+      elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
+        #Calculate sphere distance from base object
+        print('Sphere found at:')
+        M = cv2.moments(contour)
+        sphere_coords = (int(M['m10']/M['m00']), int(M['m01']/M['m00']))
+        print(sphere_coords)
+        
+      
 
     #print(len(contours))
 
