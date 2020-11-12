@@ -116,10 +116,10 @@ class image_converter:
     #initiate publishers for joints' angular position estimated from camera 1
     #this could also be written into a single node joints as in the labs, but the handleing of the error (joints not visible)
     #would be less elegant
-    self.joint1_cam1_pub = rospy.Publisher("/joint1_cam1",Float64, queue_size=10)
-    self.joint2_cam1_pub = rospy.Publisher("/joint2_cam1",Float64, queue_size=10)
-    self.joint3_cam1_pub = rospy.Publisher("/joint3_cam1",Float64, queue_size=10)
-    self.joint4_cam1_pub = rospy.Publisher("/joint4_cam1",Float64, queue_size=10)
+    self.joint1_cam1_pub = rospy.Publisher("/joint1_camera1",Float64, queue_size=10)
+    self.joint2_cam1_pub = rospy.Publisher("/joint2_camera1",Float64, queue_size=10)
+    self.joint3_cam1_pub = rospy.Publisher("/joint3_camera1",Float64, queue_size=10)
+    self.joint4_cam1_pub = rospy.Publisher("/joint4_camera1",Float64, queue_size=10)
     #self.joint_angles = {'joint1' : 0, 'joint2' : 0, 'joint3' : 0, 'joint4' : 0}
 
   def position_joint2(self, current_time):
@@ -161,27 +161,27 @@ class image_converter:
     flag1Pos, circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     flag2Pos, circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
     flag3Pos, circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
-    self.joint1_cam1_pub = Float64() #joint 1 is assumed not to be changing for task 2.1
-    self.joint2_cam1_pub = Float64()
-    #self.joint3_cam1_pub = Float64() #if joint 1 does not rotate, joint 3 can be detected only from camera2
-    self.joint4_cam1_pub = Float64()
+    self.joint1_cam1 = Float64() #joint 1 is assumed not to be changing for task 2.1
+    self.joint2_cam1 = Float64()
+    #self.joint3_cam1 = Float64() #if joint 1 does not rotate, joint 3 can be detected only from camera2
+    self.joint4_cam1 = Float64()
     #Getting divide by zero exception errors in some instances
     #Need to refactor this
     if flag_center == 1 or flag1Pos == 1:
       #an error has occurred, one of the joints is not visible
       pass
     else:
-      self.joint1_cam1_pub = np.arctan2((center[0] - circle1Pos[0]), (center[1] - circle1Pos[1])) #we assume joint1 is not rotating for task 2.1
+      self.joint1_cam1 = np.arctan2((center[0] - circle1Pos[0]), (center[1] - circle1Pos[1])) #we assume joint1 is not rotating for task 2.1
     if flag1Pos == 1 or flag2Pos == 1:
       #an error has occurred one of the joints is not visible
       pass
     else:
-      self.joint2_cam1_pub = np.arctan2((circle1Pos[0] - circle2Pos[0]), (circle1Pos[1] - circle2Pos[1])) - self.joint1_cam1_pub
+      self.joint2_cam1 = np.arctan2((circle1Pos[0] - circle2Pos[0]), (circle1Pos[1] - circle2Pos[1])) - self.joint1_cam1
     #if joint 1 does not rotate, joint 3 can be detected only from cam
     if flag2Pos == 1 or flag3Pos == 1:
       pass
     else:
-      self.joint4_cam1_pub = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - self.joint1_cam1_pub - self.joint2_cam1_pub
+      self.joint4_cam1 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - self.joint1_cam1 - self.joint2_cam1
 
   def detect_targets(self, image):
     contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
@@ -203,7 +203,6 @@ class image_converter:
   def robot_clock_tick(self):
     #send control commands to joints for task 2.1
     curr_time = np.array([rospy.get_time() - self.time_joint2])
-    
     self.joint2 = Float64()
     self.joint2.data = self.position_joint2(curr_time)
     self.joint3 = Float64()
@@ -212,6 +211,7 @@ class image_converter:
     self.joint4.data = self.position_joint4(curr_time)
 
   # Recieve data from camera 1, process it, and publish
+
   def callback1(self,data):
   # Recieve the image
     try:
@@ -240,10 +240,10 @@ class image_converter:
       self.robot_joint2_pub.publish(self.joint2)
       self.robot_joint3_pub.publish(self.joint3)
       self.robot_joint4_pub.publish(self.joint4)
-      self.joint1_cam1.publish(self.joint1_cam1_pub)
-      self.joint1_cam2.publish(self.joint2_cam1_pub)
-      self.joint1_cam3.publish(self.joint3_cam1_pub)
-      self.joint1_cam4.publish(self.joint4_cam1_pub)
+      self.joint1_cam1_pub.publish(self.joint1_cam1)
+      self.joint2_cam1_pub.publish(self.joint2_cam1)
+      #self.joint1_cam1_pub.publish(self.joint3_cam1)
+      self.joint4_cam1_pub.publish(self.joint4_cam1)
     except CvBridgeError as e:
       print(e)
 
