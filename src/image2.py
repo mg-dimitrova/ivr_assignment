@@ -166,6 +166,8 @@ class image_converter:
     self.joints = Float64MultiArray()
     self.joints.data = self.detect_joint_angles(self.cv_image2)
 
+    self.robot_clock_tick()
+
     #send control commands to joints for task 2.1
     self.joint3 = Float64()
     self.joint3.data = self.position_joint3()
