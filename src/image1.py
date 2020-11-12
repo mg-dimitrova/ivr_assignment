@@ -120,6 +120,9 @@ class image_converter:
     self.joint2_cam1_pub = rospy.Publisher("/joint2_camera1",Float64, queue_size=10)
     self.joint3_cam1_pub = rospy.Publisher("/joint3_camera1",Float64, queue_size=10)
     self.joint4_cam1_pub = rospy.Publisher("/joint4_camera1",Float64, queue_size=10)
+    #publishers for the target coordinates
+    self.sphere_target_y_pub = rospy.Publisher("/sphere_y_camera1",Float64, queue_size=10)
+    self.sphere_target_z_pub = rospy.Publisher("/sphere_z_camera1",Float64, queue_size=10)
     #self.joint_angles = {'joint1' : 0, 'joint2' : 0, 'joint3' : 0, 'joint4' : 0}
 
   def position_joint2(self, current_time):
@@ -184,21 +187,23 @@ class image_converter:
       self.joint4_cam1 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - self.joint1_cam1 - self.joint2_cam1
 
   def detect_targets(self, image):
+    self.cube_coords = Float64MultiArray()
+    self.sphere_coords = Float64MultiArray()
     contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
     #Finds the circle orange object
     for contour in contours:
       if is_cube(contour):
-        print('Cube found at:')
+        #print('Cube found at:')
         M = cv2.moments(contour)
-        cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-        print(cube_coords)
+        self.cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        #print(self.cube_coords)
       elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
         #Calculate sphere distance from base object
-        print('Sphere found at:')
+        #print('Sphere found at:')
         M = cv2.moments(contour)
-        sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-        print(sphere_coords)
-    return cube_coords, sphere_coords
+        self.sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        #print(self.sphere_coords)
+        #print(self.sphere_coords[0])
 
   def robot_clock_tick(self):
     #send control commands to joints for task 2.1
@@ -233,6 +238,9 @@ class image_converter:
     self.detect_individual_joint_angles(self.cv_image1)
     #estimate the joints angle desired from sinusoidal formulas
     self.robot_clock_tick()
+    #detect coordinate of the spherical target
+    self.detect_targets(self.cv_image1)
+
 
     # Publish the results
     try:
@@ -244,6 +252,8 @@ class image_converter:
       self.joint2_cam1_pub.publish(self.joint2_cam1)
       #self.joint1_cam1_pub.publish(self.joint3_cam1)
       self.joint4_cam1_pub.publish(self.joint4_cam1)
+      self.sphere_target_y_pub.publish(self.sphere_coords[0])
+      self.sphere_target_z_pub.publish(self.sphere_coords[1])
     except CvBridgeError as e:
       print(e)
 
