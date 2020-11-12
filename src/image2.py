@@ -95,9 +95,9 @@ class image_converter:
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
     #initiate the joint publishers
-    self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
+    #self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
     # initialize the variable for the starting time
-    self.time_joint3 = rospy.get_time()
+    #self.time_joint3 = rospy.get_time()
 
   #define sinusoidal trajectory for task 2.1
   def position_joint3(self, curr_time):
@@ -117,9 +117,9 @@ class image_converter:
 
     #Getting divide by zero exception errors in some instances
     #Need to refactor this
-    joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) / (center[1] - circle1Pos[1]))
-    joint_angle_2 = np.arctan((circle1Pos[0] - circle2Pos[0]) / (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
-    joint_angle_3 = np.arctan((circle2Pos[0] - circle3Pos[0]) s/ (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
+    joint_angle_1 = np.arctan2((center[0] - circle1Pos[0]),(center[1] - circle1Pos[1]))
+    joint_angle_2 = np.arctan2((circle1Pos[0] - circle2Pos[0]), (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
+    joint_angle_3 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
     
     return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
 
@@ -160,8 +160,8 @@ class image_converter:
     cv2.waitKey(1)
 
     #detect joints angles from camera
-    self.joints = Float64MultiArray()
-    self.joints.data = self.detect_joint_angles(self.cv_image2)
+    #self.joints = Float64MultiArray()
+    #self.joints.data = self.detect_joint_angles(self.cv_image2)
 
     #send sinusoindal value to joints
     #self.robot_clock_tick()
