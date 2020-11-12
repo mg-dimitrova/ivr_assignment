@@ -32,7 +32,40 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
     #find the centre of mass from the moments estimation
     cx = int(M['m10']/M['m00'])
     cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])  
+    return np.array([cx, cy])
+
+def detect_colour2(image, lower_colour_boundary, upper_colour_boundary):
+    #DOESN'T SOLVE FOR OVERLAPPING COLOURS
+
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    return contours
+
+def is_cube(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  if len(approx) < 8:
+    return True
+  return False
+
+def is_sphere(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  print(len(approx))
+  if ((len(approx) > 8) & (area > 30)):
+    return True
+  return False
 
 class image_converter:
 
@@ -67,14 +100,13 @@ class image_converter:
     self.time_joint3 = rospy.get_time()
 
   #define sinusoidal trajectory for task 2.1
-  def position_joint3(self):
+  def position_joint3(self, curr_time):
     # get current time
-    curr_time = np.array([rospy.get_time() - self.time_joint3])
+    #curr_time = np.array([rospy.get_time() - self.time_joint3])
     #joint 3 rotates around the y axis, the movement would be visible from camera 2 in the zx plane
     j3 = float((np.pi/2) * np.sin(np.pi/18 * curr_time))
     return j3
 
-  
   def detect_joint_angles(self, image):
     center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
     circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
@@ -94,10 +126,26 @@ class image_converter:
     
     return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
 
+  def detect_targets(self, image):
+    contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+    #Finds the circle orange object
+    for contour in contours:
+      if is_cube(contour):
+        print('Cube found at:')
+        M = cv2.moments(contour)
+        cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        print(cube_coords)
+      elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
+        #Calculate sphere distance from base object
+        print('Sphere found at:')
+        M = cv2.moments(contour)
+        sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        print(sphere_coords)
+    return cube_coords, sphere_coords
+
   def robot_clock_tick(self):
     #psend control commands to joints for task 2.1
-    curr_time = np.array([rospy.get_time() - self.time_joint2])
-    
+    curr_time = np.array([rospy.get_time() - self.time_joint3])
     self.joint3 = Float64()
     self.joint3.data = self.position_joint3(curr_time)
 
@@ -129,7 +177,7 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
 
-    # call the class
+# call the class
 def main(args):
   ic = image_converter()
   try:

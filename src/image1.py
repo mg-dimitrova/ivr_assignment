@@ -130,29 +130,6 @@ class image_converter:
     circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
     circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
 
-    contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
-
-
-    #Finds the circle orange object
-    for contour in contours:
-      if is_cube(contour):
-        print('Cube found at:')
-        M = cv2.moments(contour)
-        cube_coords = (int(M['m10']/M['m00']), int(M['m01']/M['m00']))
-        print(cube_coords)
-      elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
-        #Calculate sphere distance from base object
-        print('Sphere found at:')
-        M = cv2.moments(contour)
-        sphere_coords = (int(M['m10']/M['m00']), int(M['m01']/M['m00']))
-        print(sphere_coords)
-        
-      
-
-    #print(len(contours))
-
-    #object_to_be_tracked = detect_colour(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
-
     #Getting divide by zero exception errors in some instances
     #Need to refactor this
     joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) 
@@ -164,8 +141,26 @@ class image_converter:
     
     return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
 
+  def detect_targets(self, image):
+    contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+    #Finds the circle orange object
+    for contour in contours:
+      if is_cube(contour):
+        print('Cube found at:')
+        M = cv2.moments(contour)
+        cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        print(cube_coords)
+      elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
+        #Calculate sphere distance from base object
+        print('Sphere found at:')
+        M = cv2.moments(contour)
+        sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+        print(sphere_coords)
+    return cube_coords, sphere_coords
+
+
   def robot_clock_tick(self):
-    #psend control commands to joints for task 2.1
+    #send control commands to joints for task 2.1
     curr_time = np.array([rospy.get_time() - self.time_joint2])
     
     self.joint2 = Float64()
