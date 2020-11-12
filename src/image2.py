@@ -117,12 +117,9 @@ class image_converter:
 
     #Getting divide by zero exception errors in some instances
     #Need to refactor this
-    joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) 
-                                / (center[1] - circle1Pos[1]))
-    joint_angle_2 = np.arctan((circle1Pos[0] - circle2Pos[0]) 
-                                / (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
-    joint_angle_3 = np.arctan((circle2Pos[0] - circle3Pos[0]) 
-                                / (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
+    joint_angle_1 = np.arctan((center[0] - circle1Pos[0]) / (center[1] - circle1Pos[1]))
+    joint_angle_2 = np.arctan((circle1Pos[0] - circle2Pos[0]) / (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
+    joint_angle_3 = np.arctan((circle2Pos[0] - circle3Pos[0]) s/ (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
     
     return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
 
@@ -166,16 +163,13 @@ class image_converter:
     self.joints = Float64MultiArray()
     self.joints.data = self.detect_joint_angles(self.cv_image2)
 
-    self.robot_clock_tick()
-
-    #send control commands to joints for task 2.1
-    self.joint3 = Float64()
-    self.joint3.data = self.position_joint3()
+    #send sinusoindal value to joints
+    #self.robot_clock_tick()
 
     # Publish the results
     try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
-      self.robot_joint3_pub.publish(self.joint3)
+      #self.robot_joint3_pub.publish(self.joint3)
     except CvBridgeError as e:
       print(e)
 

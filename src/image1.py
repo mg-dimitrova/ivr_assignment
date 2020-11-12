@@ -165,6 +165,8 @@ class image_converter:
     
     self.joint2 = Float64()
     self.joint2.data = self.position_joint2(curr_time)
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
     self.joint4 = Float64()
     self.joint4.data = self.position_joint4(curr_time)
 
@@ -185,13 +187,15 @@ class image_converter:
     #estimate the joints from camera
     self.joints = Float64MultiArray()
     self.joints.data = self.detect_joint_angles(self.cv_image1)#This should be written out to a plot, also, this doesnt account for angles?
-  
-    self.robot_clock_tick()
+
+    #estimate the joints angle desired from sinusoidal formulas
+    #self.robot_clock_tick()
 
     # Publish the results
     try:
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
       self.robot_joint2_pub.publish(self.joint2)
+      self.robot_joint3_pub.publish(self.joint3)
       self.robot_joint4_pub.publish(self.joint4)
     except CvBridgeError as e:
       print(e)
