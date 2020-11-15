@@ -119,8 +119,6 @@ class image_converter:
 
   #define sinusoidal trajectory for task 2.1
   def position_joint2(self, current_time):
-    # get current time
-    #curr_time = np.array([rospy.get_time() - self.time_joint2])
     #joint 2 rotates around the x axis
     #the sinusoidal movement would be visible from camera 1 on the yz plane
     j2 = float((np.pi/2) * np.sin(np.pi/15 * current_time))
@@ -131,8 +129,6 @@ class image_converter:
     return j3
 
   def position_joint4(self, current_time):
-    # get current time
-    #curr_time = np.array([rospy.get_time() - self.time_joint4])
     #joint 4 rotates around the x axis
     #the sinusoidal movement would be visible from camera 1 on the yz plane
     j4 = float((np.pi/2) * np.sin(np.pi/20 * current_time))
@@ -154,51 +150,40 @@ class image_converter:
     
     return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
 
-  def detect_individual_joint_angles(self, image):
-    flag_center, center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+  def detect_individual_joint_angles(self, image,assume_zero=False, previous_state=False, predict=False):
+    #flag_center, center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
     flag1Pos, circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     flag2Pos, circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
-    flag3Pos, circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
-    self.joint1_cam2 = Float64() #joint 1 is assumed not to be changing for task 2.1
-    #self.joint2_cam2 = Float64()
+    #flag3Pos, circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
+    #joint 1 is assumed not to be changing for task 2.1, thus joint 2 and 4 can only be detected from camera 1
     self.joint3_cam2 = Float64() #if joint 1 does not rotate, joint 3 can be detected only from camera2
-    self.joint4_cam2 = Float64()
-    #Getting divide by zero exception errors in some instances
-    #Need to refactor this
-    if flag_center == 1 or flag1Pos == 1:
-      #an error has occurred, one of the joints is not visible
-      pass
-    else:
-      self.joint1_cam2 = np.arctan2((center[0] - circle1Pos[0]), (center[1] - circle1Pos[1])) #we assume joint1 is not rotating for task 2.1
+    self.previous_joint3 = Float64()
+    #we assume joint1 is not rotating for task 2.1
     if flag1Pos == 1 or flag2Pos == 1:
       #an error has occurred one of the joints is not visible
-      pass
+      if assume_zero:
+        self.joint3_cam2 = 0.0
+      elif previous_state:
+        self.joint3_cam2 = self.previous_joint3
+      elif predict:
+        pass
     else:
-      self.joint3_cam2 = np.arctan2((circle1Pos[0] - circle2Pos[0]), (circle1Pos[1] - circle2Pos[1])) - self.joint1_cam2
-    #if joint 1 does not rotate, joint 2 can be detected only from camera 1
-    if flag2Pos == 1 or flag3Pos == 1:
-      pass
-    else:
-      self.joint4_cam2 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - self.joint1_cam2 - self.joint3_cam2
+      self.joint3_cam2 = np.arctan2((circle2Pos[0] - circle1Pos[0]), (circle1Pos[1] - circle2Pos[1]))
+      self.previous_joint3 = self.joint3_cam2
 
-  def detect_targets(self, image):
+  def detect_targets(self, image, cube=False, sphere=True):
     self.cube_coords = Float64MultiArray()
     self.sphere_coords = Float64MultiArray()
     contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
-    #Finds the circle orange object
     for contour in contours:
-      if is_cube(contour):
-        #print('Cube found at:')
+      if is_cube(contour) and cube:
         M = cv2.moments(contour)
-        self.cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-        #print(self.cube_coords)
-      elif is_sphere: #SPHERE IS WHAT IS IMPORTANT FOR THE ASSIGNMENT
-        #Calculate sphere distance from base object
-        #print('Sphere found at:')
+        if M['m00'] != 0:
+          self.cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+      elif is_sphere and sphere:
         M = cv2.moments(contour)
-        self.sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-        #print(self.sphere_coords)
-        #print(self.sphere_coords[0])
+        if M['m00'] != 0:
+          self.sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
 
   def robot_clock_tick(self):
     #send control commands to joints for task 2.1
@@ -226,7 +211,7 @@ class image_converter:
     #detect joints angles from camera
     #self.joints = Float64MultiArray()
     #self.joints.data = self.detect_joint_angles(self.cv_image2)
-    self.detect_individual_joint_angles(self.cv_image2)
+    self.detect_individual_joint_angles(self.cv_image2,previous_state=False, predict=False)
     #send sinusoindal value to joints
     self.robot_clock_tick()
     #detect coordinate of the spherical target
@@ -235,13 +220,13 @@ class image_converter:
     # Publish the results
     try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
+      #publish joint position according to sinusoidal trend
       self.robot_joint2_pub.publish(self.joint2)
       self.robot_joint3_pub.publish(self.joint3)
       self.robot_joint4_pub.publish(self.joint4)
-      self.joint1_cam2_pub.publish(self.joint1_cam2)
-      #self.joint2_cam2_pub.publish(self.joint2_cam2)
+      #publish the joint position calculated using vision
       self.joint3_cam2_pub.publish(self.joint3_cam2)
-      self.joint4_cam2_pub.publish(self.joint4_cam2)
+      #publish the target position calculated using vision
       self.sphere_target_x_pub.publish(self.sphere_coords[0])
       self.sphere_target_z_pub.publish(self.sphere_coords[1])
     except CvBridgeError as e:
