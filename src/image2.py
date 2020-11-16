@@ -40,6 +40,9 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
         #find the centre of mass from the moments estimation
         cx = int(M['m10']/M['m00'])
         cy = int(M['m01']/M['m00'])
+
+
+    #Returns X/Z
     return flag, np.array([cx, cy])
 
 def detect_colour2(image, lower_colour_boundary, upper_colour_boundary):
@@ -181,6 +184,8 @@ class image_converter:
     else:
       self.joint4_cam2 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - self.joint1_cam2 - self.joint3_cam2
 
+    print("Circle1: ", circle1Pos[0], " - ", circle1Pos[1])
+
   def detect_targets(self, image):
     self.cube_coords = Float64MultiArray()
     self.sphere_coords = Float64MultiArray()
@@ -203,12 +208,14 @@ class image_converter:
   def robot_clock_tick(self):
     #send control commands to joints for task 2.1
     curr_time = np.array([rospy.get_time() - self.time_joint3])
+    """
     self.joint2 = Float64()
     self.joint2.data = self.position_joint2(curr_time)
     self.joint3 = Float64()
     self.joint3.data = self.position_joint3(curr_time)
     self.joint4 = Float64()
     self.joint4.data = self.position_joint4(curr_time)
+    """
 
   # Recieve data, process it, and publish
   def callback2(self,data):
@@ -235,9 +242,9 @@ class image_converter:
     # Publish the results
     try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
-      self.robot_joint2_pub.publish(self.joint2)
-      self.robot_joint3_pub.publish(self.joint3)
-      self.robot_joint4_pub.publish(self.joint4)
+      #self.robot_joint2_pub.publish(self.joint2)
+      #self.robot_joint3_pub.publish(self.joint3)
+      #self.robot_joint4_pub.publish(self.joint4)
       self.joint1_cam2_pub.publish(self.joint1_cam2)
       #self.joint2_cam2_pub.publish(self.joint2_cam2)
       self.joint3_cam2_pub.publish(self.joint3_cam2)
