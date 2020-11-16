@@ -170,6 +170,7 @@ class image_converter:
   def detect_joints_3D(self, image1, image2, assume_zero=False, previous_state=False, predict=False):
     #detect joints from camera1
     #flag_center, center = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    yellow = np.array([398,398,532])
     flagBlue1, circleBlue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     flagBlue2, circleBlue2 = detect_colour(image2, self.BLUE_LOWER, self.BLUE_UPPER)
     flagGreen1, circleGreen1 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
@@ -179,14 +180,22 @@ class image_converter:
     #joint 1 is assumed not to be changing for task 2.1, thus joint 3 can be detected only from camera2
     #we assume joint1 is not rotating for task 2.1
     #  self.joint1_cam1 = np.arctan2((center[0] - circleBlue1[0]), (center[1] - circleBlue1[1]))
-    blue = np.array([circleBlue2[0], circleBlue1[0], (circleBlue1[1]+circleBlue2[1])/2.0])
-    green = np.array([circleGreen2[0], circleBlue1[0], (circleBlue2[1]+circleBlue1[1])/2.0])
-    red = np.array([circleRed2[0], circleRed1[0], (circleRed2[1]+circleRed2)/2.0])
+    blue = np.array([circleBlue2[0], circleBlue1[0], circleBlue1[1]])
+    green = np.array([circleGreen2[0], circleGreen1[0], circleGreen2[1]])
+    red = np.array([circleRed2[0], circleRed1[0], circleRed2[1]])
+    norm_yb = blue - yellow
     norm_bg = green - blue
     norm_gr = red - green
-    cosine_angles = np.dot(norm_bg, norm_gr) / (np.linalg.norm(norm_bg) * np.linalg.norm(norm_gr))
-    angles = np.arccos(cosine_angles)
-    print(angles)
+    print(np.linalg.norm(norm_yb), np.linalg.norm(norm_bg), np.linalg.norm(norm_gr))
+    cosine_j4 = np.dot(norm_bg, norm_gr) / (np.linalg.norm(norm_bg) * np.linalg.norm(norm_gr))
+    j4 = np.arccos(cosine_j4)
+    #self.joint4_cam1 = j4
+    cosine_j3 = np.dot(norm_yb, norm_bg) / (np.linalg.norm(norm_yb) * np.linalg.norm(norm_bg))
+    j3 = np.arccos(cosine_j3)
+    #self.joint2_cam1 = j3[0]
+    #self.joint3_cam1 = j3[1]
+    print(j3, j4)
+
 
   def detect_targets(self, image1, image2, cube=False, sphere=True):
     contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
@@ -304,8 +313,9 @@ class image_converter:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
       #publish joint position according to sinusoidal trend
       #self.robot_joint2_pub.publish(self.joint2)
-      self.robot_joint3_pub.publish(self.joint3)
+      #self.robot_joint3_pub.publish(self.joint3)
       #self.robot_joint4_pub.publish(self.joint4)
+      #print(self.joint2, self.joint3, self.joint4)
       #publish the joint position calculated using vision
       self.joint2_cam1_pub.publish(self.joint2_cam1)
       self.joint3_cam1_pub.publish(self.joint3_cam1)
