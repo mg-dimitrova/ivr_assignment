@@ -121,51 +121,39 @@ class image_converter:
     j4 = float((np.pi/2) * np.sin(np.pi/20 * current_time))
     return j4
 
-  def detect_individual_joint_angles(self, image1, image2, assume_zero=False, previous_state=False, predict=False):
+  def detect_individual_joint_angles(self, image1, image2):
     #detect joints from camera1
     #flag_center, center = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
-    flagBlue1, circleBlue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
-    flagBlue2, circleBlue2 = detect_colour(image2, self.BLUE_LOWER, self.BLUE_UPPER)
-    flagGreen1, circleGreen1 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
-    flagGreen2, circleGreen2 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER)
-    flagRed1, circleRed1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER) #End effector
-    flagRed2, circleRed2 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER)
+    circleYellow1 = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER)
+
+    circleBlue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circleBlue2 = detect_colour(image2, self.BLUE_LOWER, self.BLUE_UPPER)
+    circleGreen1 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    circleGreen2 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER)
+    circleRed1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER) #End effector
+    circleRed2 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER)
     #joint 1 is assumed not to be changing for task 2.1, thus joint 3 can be detected only from camera2
 
-    #we assume joint1 is not rotating for task 2.1
-    #  self.joint1_cam1 = np.arctan2((center[0] - circleBlue1[0]), (center[1] - circleBlue1[1]))
-    if flagBlue1 == 1 or flagGreen1 == 1:
-      #an error has occurred one of the joints is not visible, assign previous valid position to the current joint
-      if assume_zero:
-        self.joint2_cam1 = 0.0
-      elif previous_state:
-        self.joint2_cam1 = self.previous_joint2
-      elif predict:
-        pass
-    else:
-      self.joint2_cam1 = np.arctan2((circleBlue1[0] - circleGreen1[0]), (circleBlue1[1] - circleGreen1[1]))# - float(self.joint1_cam1)
-      self.previous_joint2 = self.joint2_cam1
+    ja1 = np.arctan2(circleYellow1[0] - circleBlue1[0], circleYellow1[1] - circleBlue1[1])
 
-    if flagBlue2 == 1 or flagGreen2 == 1:
-      #an error has occurred one of the joints is not visible, assign previous valid position to the current joint
-      if assume_zero:
-        self.joint3_cam1 = 0.0
-      elif previous_state:
-        self.joint3_cam1 = self.previous_joint3
-      elif predict:
-        pass
-    else:
-      self.joint3_cam1 = np.arctan2((circleBlue2[0] - circleGreen2[0]), (circleBlue2[1] - circleGreen2[1]))# - float(self.joint1_cam1)
-      self.previous_joint3 = self.joint3_cam1
+    ja2 = np.arctan2(circleBlue1[0] - circleGreen1[0], circleBlue1[1] - circleGreen1[1]) - ja1
 
-    if flagGreen1 == 1 or flagRed1 == 1:
-      if assume_zero:
-        self.joint4_cam1 = 0.0
-      elif previous_state:
-        self.joint4_cam1 = self.previous_joint4
-    else:
-      self.joint4_cam1 = np.arctan2((circleGreen1[0] - circleRed1[0]),(circleGreen1[1] - circleRed1[1])) - self.joint2_cam1 #- float(self.joint1_cam1)
-      self.previous_joint4 = self.joint4_cam1
+    ja3 = np.arctan2(circleGreen1[0] - circleRed1[0], circleGreen1[1] - circleRed1[1]) -ja2 - ja1
+    
+    print(ja1)
+    print(ja2)
+    print(ja3)
+    #self.joint2_cam1 = np.arctan2((circleBlue1[0] - circleGreen1[0]), (circleBlue1[1] - circleGreen1[1]))# - float(self.joint1_cam1)
+
+    #print(self.joint2_cam1)
+
+    #print(circleGreen1[0])
+    #print(circleGreen1[1])
+
+
+    #self.joint3_cam1 = np.arctan2((circleBlue2[0] - circleGreen2[0]), (circleBlue2[1] - circleGreen2[1]))# - float(self.joint1_cam1)
+    #self.joint4_cam1 = np.arctan2((circleGreen1[0] - circleRed1[0]),(circleGreen1[1] - circleRed1[1])) - self.joint2_cam1 #- float(self.joint1_cam1)
+    
 
   def detect_joints_3D(self, image1, image2, assume_zero=False, previous_state=False, predict=False):
     #detect joints from camera1
@@ -228,11 +216,9 @@ class image_converter:
     joint3_camera1 = detect_colour(camera1_perspective, joint3[0], joint3[1])
     joint3_camera2 = detect_colour(camera2_perspective, joint3[0], joint3[1])
 
-    #Blue
+ 
     a = np.array([joint1_camera2[0], joint1_camera1[0], joint1_camera2[1]])
-    #Green
     b = np.array([joint2_camera2[0], joint2_camera1[0], joint2_camera2[1]])
-    #Red
     c = np.array([joint3_camera2[0], joint3_camera1[0], joint3_camera2[1]])
 
     ba = a - b
@@ -242,6 +228,9 @@ class image_converter:
     angle = np.arccos(cosine_angle)
 
     print(np.degrees(angle))
+
+
+
 
   def detect_targets(self, image1, image2, cube=False, sphere=True):
     contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
@@ -299,10 +288,14 @@ class image_converter:
     red = [self.RED_LOWER, self.RED_UPPER]
     yellow = [self.YELLOW_LOWER, self.YELLOW_UPPER]
 
+    self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
+    """
     self.detect_joints_3D_2(self.cv_image1, self.cv_image2, blue, green, red)
 
     self.detect_joints_3D_2(self.cv_image1, self.cv_image2, yellow, blue, green)
 
+    self.detect_joints_3D_2(self.cv_image2, self.cv_image1, yellow, blue, green)
+    """
 
   def pixel2meter(self, image):
     #this value is always the same... we should not calculate it all the time... =
