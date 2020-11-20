@@ -301,7 +301,7 @@ class image_converter:
 
     self.detect_joints_3D_2(self.cv_image1, self.cv_image2, blue, green, red)
 
-    self.detect_joints_3D_2(self.cv_image1, self.cv_image2, yellow, blue, green)
+    #self.detect_joints_3D_2(self.cv_image1, self.cv_image2, yellow, blue, green)
 
 
   def pixel2meter(self, image):
@@ -331,8 +331,8 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
     cv2.imwrite('image_copy1.png', self.cv_image1)
-    #im1=cv2.imshow('window1', self.cv_image1)
-    #cv2.waitKey(1)
+    im1=cv2.imshow('window1', self.cv_image1)
+    cv2.waitKey(1)
 
   def callback2(self,data):
   # Recieve the image
