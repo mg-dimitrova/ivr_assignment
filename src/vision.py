@@ -350,6 +350,7 @@ class image_converter:
 
     '''
 
+
   def pixel2meter(self, image):
     #this value is always the same... we should not calculate it all the time... =
     # dist = 0.03845698760800996 m/px dist2 = 0.03888648856244221 m/px
@@ -377,8 +378,8 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
     cv2.imwrite('image_copy1.png', self.cv_image1)
-    im1=cv2.imshow('window1', self.cv_image1)
-    cv2.waitKey(1)
+    #im1=cv2.imshow('window1', self.cv_image1)
+    #cv2.waitKey(1)
 
   def callback2(self,data):
   # Recieve the image
