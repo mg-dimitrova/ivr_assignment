@@ -40,7 +40,7 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary, is_target
           #find the centre of mass from the moments estimation
           cx = int(M['m10']/M['m00'])
           cy = int(M['m01']/M['m00'])
-      return np.array([cx, cy])
+      return flag, np.array([cx, cy])
 
 def is_cube(contour):
   approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
@@ -125,6 +125,8 @@ class image_converter:
   def detect_individual_joint_angles(self, image1, image2,assume_zero=False, previous_state=False, predict=False):
     #detect joints from camera1
     #flag_center, center = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    #yellow = np.array([398,398,532])
+    yellow = np.array([398,532])
     flagBlue1, circleBlue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     flagBlue2, circleBlue2 = detect_colour(image2, self.BLUE_LOWER, self.BLUE_UPPER)
     flagGreen1, circleGreen1 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
@@ -132,8 +134,9 @@ class image_converter:
     flagRed1, circleRed1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER) #End effector
     flagRed2, circleRed2 = detect_colour(image2, self.RED_LOWER, self.RED_UPPER)
     #joint 1 is assumed not to be changing for task 2.1, thus joint 3 can be detected only from camera2
-    print(circleRed1, circleRed2)
-    print(circleBlue1, circleGreen1)
+    r_yz = self.PIXEL2METER*(yellow-circleRed1)
+    r_xz = self.PIXEL2METER*(yellow-circleRed2)
+    print(r_xz, r_yz)
     #we assume joint1 is not rotating for task 2.1
     #  self.joint1_cam1 = np.arctan2((center[0] - circleBlue1[0]), (center[1] - circleBlue1[1]))
     if flagBlue1 == 1 or flagGreen1 == 1:
@@ -272,13 +275,21 @@ class image_converter:
   def FM(self):
     #t1, t2, t3, t4 = joints[0], joints[1], joints[2], joints[3] #theta1 to theta4
     t1, t2, t3, t4 = self.joint1_cam1, self.joint2_cam1, self.joint3_cam1, self.joint4_cam1
+    print(t1, t2, t3, t4)
     l1 = 2.5
     l3 = 3.5
     l4 = 3.0
-    xe = -l4*np.sin(t4)*(np.cos(t1)*np.cos(t2)*np.cos(t3) + np.sin(t1)*np.sin(t3)) - l4*np.cos(t4)*np.cos(t1)*np.sin(t2) - l3*np.sin(t3)*np.cos(t1)*np.cos(t2) + l3*np.cos(t3)*np.sin(t1)
-    ye = -l4*np.sin(t4)*(np.sin(t1)*np.cos(t2)*np.cos(t3) + np.cos(t1)*np.sin(t3)) - l4*np.cos(t4)*np.sin(t1)*np.sin(t2) - l3*np.sin(t3)*np.sin(t1)*np.cos(t2) - l3*np.cos(t3)*np.cos(t1)
-    ze = -l4*np.sin(t4)*np.sin(t2)*np.cos(t3) + l4*np.cos(t2)*np.cos(t4) -l3*np.sin(t2)*np.sin(t3) + l1
+    #xe = -l4*np.sin(t4)*(np.cos(t1)*np.cos(t2)*np.cos(t3) + np.sin(t1)*np.sin(t3)) - l4*np.cos(t4)*np.cos(t1)*np.sin(t2) - l3*np.sin(t3)*np.cos(t1)*np.cos(t2) + l3*np.cos(t3)*np.sin(t1)
+    #ye = -l4*np.sin(t4)*(np.sin(t1)*np.cos(t2)*np.cos(t3) - np.cos(t1)*np.sin(t3)) - l4*np.cos(t4)*np.sin(t1)*np.sin(t2) - l3*np.sin(t3)*np.sin(t1)*np.cos(t2) - l3*np.cos(t3)*np.cos(t1)
+    #ze = -l4*np.sin(t4)*np.sin(t2)*np.cos(t3) + l4*np.cos(t2)*np.cos(t4) - l3*np.sin(t2)*np.sin(t3) + l1
+    #xe = l4*np.cos(t4)*(np.cos(t1)*np.cos(t2)*np.cos(t3)+np.sin(t1)*np.sin(t3)) - l4*np.cos(t1)*np.sin(t2)*np.sin(t4) + l3*np.cos(t1)*np.cos(t2)*np.cos(t3) + l3*np.sin(t1)*np.sin(t3)
+    #ye = l4*np.cos(t4)*(np.sin(t1)*np.cos(t2)*np.cos(t3)+np.cos(t1)*np.sin(t3)) - l4*np.sin(t1)*np.sin(t2)*np.sin(t4) + l3*np.sin(t1)*np.cos(t2)*np.cos(t3) - l3*np.cos(t1)*np.sin(t3)
+    #ze = l4*np.cos(t4)*np.sin(t2)*np.cos(t3) + l4*np.cos(t2)*np.sin(t4) + l3*np.sin(t2)*np.cos(t3) + l1
+    xe = l4*np.cos(t4)*(np.sin(t1)*np.sin(t2)*np.cos(t3) + np.cos(t1)*np.sin(t3)) + l4*np.sin(t4)*np.sin(t1)*np.cos(t2) + l3*np.cos(t3)*np.sin(t1)*np.sin(t2) + l3*np.cos(t1)*np.sin(t3)
+    ye = l4*np.cos(t4)*(-np.cos(t1)*np.sin(t2)*np.cos(t3) + np.sin(t1)*np.sin(t3)) - l4*np.sin(t4)*np.cos(t1)*np.cos(t2) - l3*np.cos(t3)*np.cos(t1)*np.sin(t2) + l3*np.sin(t1)*np.sin(t3)
+    ze = l4*np.cos(t4)*(np.cos(t2)*np.cos(t3)) - l4*np.sin(t4)*np.sin(t2) + l3*np.cos(t3)*np.cos(t2) + l1
     print(xe, ye, ze)
+
 
   def calculate_jacobian(self, joints):
     t1, t2, t3, t4 = joints[0], joints[1], joints[2], joints[3] #theta1 to theta4
@@ -350,7 +361,6 @@ class image_converter:
 
     '''
 
-
   def pixel2meter(self, image):
     #this value is always the same... we should not calculate it all the time... =
     # dist = 0.03845698760800996 m/px dist2 = 0.03888648856244221 m/px
@@ -402,7 +412,8 @@ class image_converter:
     self.previous_joint3 = Float64()
     self.joint4_cam1 = Float64()
     self.previous_joint4 = Float64()
-    self.detect_individual_joint_angles(self.cv_image1, self.cv_image2, assume_zero=True, previous_state=False, predict=False)
+    self.detect_individual_joint_angles(self.cv_image1, self.cv_image2, assume_zero=False, previous_state=False, predict=False)
+    self.FM()
     #self.detect_joints_3D(self.cv_image1, self.cv_image2, assume_zero=True, previous_state=False, predict=False)
 
   
