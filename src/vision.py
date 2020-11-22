@@ -78,6 +78,8 @@ class image_converter:
 
   PIXEL2METER = 0.039
 
+  PIXEL_PER_METER = 25.8
+
     # Defines publisher and subscriber
   def __init__(self):
     # initialize the node named image_processing
@@ -106,7 +108,7 @@ class image_converter:
     self.joint3_cam1_pub = rospy.Publisher("/joint3",Float64, queue_size=10)
     self.joint4_cam1_pub = rospy.Publisher("/joint4",Float64, queue_size=10)
     self.previous_joints = np.array([0.0, 0.0, 0.0, 0.0], dtype ='float64')
-    self.joints_cam1_pub = rospy.Publisher("/joints_cam1", Float64MultiArray, queue_size=10)
+    #self.joints_cam1_pub = rospy.Publisher("/joints_cam1", Float64MultiArray, queue_size=10)
     self.error_joint_pub = rospy.Publisher("/error_joint", Float64, queue_size=10)
     self.error_joint = 0.0
     #publishers for the target coordinates
@@ -135,16 +137,7 @@ class image_converter:
     j4 = float((np.pi/2) * np.sin(np.pi/20 * current_time))
     return j4
 
-  def robot_clock_tick(self):
-    #send control commands to joints for task 2.1
-    curr_time = np.array([rospy.get_time() - self.time_joints])
-    self.joint2 = Float64()
-    self.joint2.data = self.position_joint2(curr_time)
-    print(self.joint2.data)
-    self.joint3 = Float64()
-    self.joint3.data = self.position_joint3(curr_time)
-    self.joint4 = Float64()
-    self.joint4.data = self.position_joint4(curr_time)
+  
 
   def detect_individual_joint_angles(self, image1, image2):
     #assuming joint one does not rotate
@@ -340,7 +333,11 @@ class image_converter:
     else:
       self.p2m = self.previous_p2m
 
-  def FM(self,joints):
+
+  def pixels_to_meters(self, pixels):
+      return pixels / self.PIXEL_PER_METER
+
+  def forward_kinematics(self,joints):
     t1, t2, t3, t4 = joints[0], joints[1], joints[2], joints[3] #theta1 to theta4
     print(t1, t2, t3, t4)
     l1 = 2.5
@@ -407,6 +404,184 @@ class image_converter:
     q = joints + dt * qdot
     return q
 
+
+  def detect_colour2(self, image1, image2, lower_colour_boundary, upper_colour_boundary, target=None):
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv1 = cv2.cvtColor(image1, cv2.COLOR_BGR2HSV)
+    mask1 = cv2.inRange(hsv1, lower_colour_boundary, upper_colour_boundary)
+
+    hsv2 = cv2.cvtColor(image2, cv2.COLOR_BGR2HSV)
+    mask2 = cv2.inRange(hsv2, lower_colour_boundary, upper_colour_boundary)
+    
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing1 = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel)
+    closing2 = cv2.morphologyEx(mask2, cv2.MORPH_CLOSE, kernel)
+    
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret1, thresh1 = cv2.threshold(closing1, 127, 255, 0)
+    ret2, thresh2 = cv2.threshold(closing2, 127, 255, 0)
+    
+    contours1, hierarchy1 = cv2.findContours(thresh1, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    
+    if target != None:
+      for contour in contours1:
+        if is_sphere(contour):
+          cnt1 = contour
+    else:
+      cnt1 = contours1[0]
+    
+    M1 = cv2.moments(cnt1)
+    
+    contours2, hierarchy2 = cv2.findContours(thresh2, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    
+    if target != None:
+      for contour in contours2:
+        if is_sphere(contour):
+          cnt2 = contour
+    else:
+      cnt2 = contours2[0]
+    M2 = cv2.moments(cnt2)
+
+    #cx, cy, cz = 0.0 , 0.0, 0.0
+    #find the centre of mass from the moments estimation
+    #Cam2 = X
+    cx = int(M2['m10']/M2['m00'])
+    
+    #Cam1 = Z/Y
+    cy = int(M1['m10']/M1['m00'])
+    cz = int(M1['m01']/M1['m00'])
+    return np.array([cx, cy, cz])
+
+  def detect_targets(self, image1, image2, cube=False, sphere=True):
+    contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
+    contours2 = detect_colour(image2, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
+    #_, center_white1 = detect_colour(image1, self.WHITE_LOWER, self.WHITE_UPPER)
+    #flag_center1, center_yz = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    #flag_center2, center_xz = detect_colour(image2, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    #center_yz = np.array([398.0,532.0]) #yellow joint
+    #center_xz = np.array([398.0,533.0])
+    #center_yz = np.array([398.0,545.0])
+    #center_xz = center_yz
+    
+    target_coordinates_x = 0
+    target_coordinates_y = 0
+    target_coordinates_z = 0
+    
+    if len(contours1) != 0:
+      for contour in contours1:
+        if cube and is_cube(contour):
+            M = cv2.moments(contour)
+            if M['m00'] != 0:
+              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+              self.cube_y = self.PIXEL2METER*(cube_coords[0] - center_yz[0])
+              self.cube_z = self.PIXEL2METER*(center_yz[1] - cube_coords[1])
+        elif sphere and is_sphere(contour):
+            M = cv2.moments(contour)
+            if M['m00'] != 0:
+              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+              target_coordinates_y = sphere_coords[0]
+              target_coordinates_z = sphere_coords[1]
+
+    if len(contours2) != 0:
+      for contour in contours2:
+        if cube and is_cube(contour):
+            M = cv2.moments(contour)
+            if M['m00'] != 0:
+              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+              self.cube_x = self.PIXEL2METER*(cube_coords[0]- center_xz[0])
+              self.cube_z = self.PIXEL2METER*(center_xz[1] - cube_coords[1])
+        if sphere and is_sphere(contour):
+            M = cv2.moments(contour)
+            if M['m00'] != 0:
+              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+              target_coordinates_x = sphere_coords[0]
+
+      return [target_coordinates_x, target_coordinates_y, target_coordinates_z]
+
+  def get_target_x(self, source_point, target_point):
+    return self.pixels_to_meters(target_point[0] - source_point[0])
+
+  def get_target_y(self, source_point, target_point):
+    return self.pixels_to_meters(target_point[1] - source_point[1])
+
+  def get_target_z(self, source_point, target_point):
+    return self.pixels_to_meters(source_point[2] - target_point[2] + 0.8) #Base Offset
+
+  def detect_target_range(self, source_point, target_point):    
+    print("Target X: ", self.get_target_x(source_point, target_point))
+    print("Target Y: ", self.get_target_y(source_point, target_point))
+    print("Target Z: ", self.get_target_z(source_point, target_point))
+
+
+  def move_joints_2_1(self):
+    ######################################################################
+    #send control commands to joints for task 2.1
+    ######################################################################
+    curr_time = np.array([rospy.get_time() - self.time_joints])
+    self.joint2 = Float64()
+    self.joint2.data = self.position_joint2(curr_time)
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
+    self.joint4 = Float64()
+    self.joint4.data = self.position_joint4(curr_time)
+    self.robot_joint2_pub.publish(self.joint2)
+    self.robot_joint3_pub.publish(self.joint3)
+    self.robot_joint4_pub.publish(self.joint4)
+    ######################################################################
+    ######################################################################
+    ######################################################################
+
+
+  def detect_targets_2_2(self):
+    ######################################################################
+    #Detect the sphere target for task 2.2
+    ######################################################################
+    self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), self.detect_colour2(self.cv_image1, self.cv_image2, self.ORANGE_LOWER, self.ORANGE_UPPER, "Sphere"))
+    ######################################################################
+    ######################################################################
+    ######################################################################
+
+
+  def forward_kinematics_3_1(self):
+    ######################################################################
+    #Calculate FK for task 3.1
+    ######################################################################
+    calculated_value = self.forward_kinematics([0.0, 0.0, 0.0, 0.3])
+    actual_value = self.detect_colour2(self.cv_image1, self.cv_image2, self.RED_LOWER, self.RED_UPPER)
+    print(calculated_value)
+    print(self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), actual_value))
+    ######################################################################
+    ######################################################################
+    ######################################################################
+
+
+  def robot_clock_tick(self):
+    #self.move_joints_2_1()
+    #self.detect_targets_2_2()
+    self.forward_kinematics_3_1()
+
+
+
+
+    #joints_cam1, joints_cam2 = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
+    #joints_cam = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
+    #self.joint2_cam1.data = joints_cam[1]
+    #self.joint4_cam1.data = joints_cam[3]
+    #self.joint3_cam2.data = joints_cam[2]
+
+
+    #self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), self.detect_colour2(self.cv_image1, self.cv_image2, self.ORANGE_LOWER, self.ORANGE_UPPER, "Sphere"))
+
+
+
+  
+
+
   def callback1(self,data):
   # Recieve the image
     try:
@@ -429,27 +604,58 @@ class image_converter:
     #im2=cv2.imshow('window2', self.cv_image2)
     #cv2.waitKey(1)
 
+    self.robot_clock_tick()
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
     #estimate joint angles individually
     self.joint1_cam1 = Float64()
     self.joint2_cam1 = Float64()
     self.joint3_cam2 = Float64()
     self.joint4_cam1 = Float64()
     self.joints_cam1 = Float64MultiArray()
-    #joints_cam1, joints_cam2 = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
-    joints_cam = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
-    self.joint2_cam1.data = joints_cam[1]
-    self.joint4_cam1.data = joints_cam[3]
-    self.joint3_cam2.data = joints_cam[2]
+    """
 
-    self.end_effector_vision = Float64MultiArray()
+
+    
+
+
+
+    
+
+    #self.end_effector_vision = Float64MultiArray()
+    
     #self.end_effector_vision.data = self.detect_end_effector(self.cv_image1, self.cv_image2)
-    self.end_effector_fk = Float64MultiArray()
+    
+    #self.end_effector_fk = Float64MultiArray()
     #self.end_effector_fk.data = self.FM()
 
     #self.detect_joints_3D(self.cv_image1, self.cv_image2, assume_zero=True, previous_state=False, predict=False)
     #estimate the joints angle desired from sinusoidal formulas
-    self.robot_clock_tick()
-    self.error_joint = self.joint2.data - joints_cam[1]
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    #self.error_joint = self.joint2.data - joints_cam[1]
+    
+    
+    
     #detect coordinate of the spherical target
     self.sphere_x = Float64()
     self.sphere_y = Float64()
@@ -460,23 +666,24 @@ class image_converter:
     try:
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
+      
       #publish joint position according to sinusoidal trend
       #self.robot_joint2_pub.publish(self.joint2)
       #self.robot_joint3_pub.publish(self.joint3)
       #self.robot_joint4_pub.publish(self.joint4)
       #print(self.joint2, self.joint3, self.joint4)
       #publish the joint position calculated using vision
-      self.joint1_cam1_pub.publish(self.joint1_cam1)
-      self.joint2_cam1_pub.publish(self.joint2_cam1)
-      self.joint3_cam1_pub.publish(self.joint3_cam2)
-      self.joint4_cam1_pub.publish(self.joint4_cam1)
-      self.error_joint_pub.publish(self.error_joint)
+      #self.joint1_cam1_pub.publish(self.joint1_cam1)
+      #self.joint2_cam1_pub.publish(self.joint2_cam1)
+      #self.joint3_cam1_pub.publish(self.joint3_cam2)
+      #self.joint4_cam1_pub.publish(self.joint4_cam1)
+      #self.error_joint_pub.publish(self.error_joint)
       #publish the target position calculated using vision
       #self.sphere_target_x_pub.publish(self.sphere_x)
       #self.sphere_target_y_pub.publish(self.sphere_y)
       #self.sphere_target_z_pub.publish(self.sphere_z)
-      self.end_effector_fk_pub.publish(self.end_effector_fk)
-      self.end_effector_vision_pub.publish(self.end_effector_vision)
+      #self.end_effector_fk_pub.publish(self.end_effector_fk)
+      #self.end_effector_vision_pub.publish(self.end_effector_vision)
     except CvBridgeError as e:
       print(e)
 
