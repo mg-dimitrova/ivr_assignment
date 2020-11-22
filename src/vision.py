@@ -436,14 +436,6 @@ class image_converter:
     cz = int(M1['m01']/M1['m00'])
     return np.array([cx, cy, cz])
 
-
-
-
-
-
-
-
-
   def detect_targets(self, image1, image2, cube=False, sphere=True):
     contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
     contours2 = detect_colour(image2, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
@@ -559,10 +551,19 @@ class image_converter:
     ######################################################################
     ######################################################################
 
+  def closed_loop_control_3_2(self):
+    ######################################################################
+    #Closed loop control for task 3.2
+    ######################################################################
+    self.closed_loop()
+    ######################################################################
+    ######################################################################
+    ######################################################################
+
 
   def robot_clock_tick(self):
     #self.move_joints_2_1()
-    self.get_joint_state_2_1()
+    #self.get_joint_state_2_1()
     #self.detect_targets_2_2()
     #self.forward_kinematics_3_1()
 
