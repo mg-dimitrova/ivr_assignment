@@ -10,6 +10,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
+
 def detect_colour(image, lower_colour_boundary, upper_colour_boundary, is_target = False):
     #converting image from BGR to HSV color-space (easier to segment an image based on its color)
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -41,6 +42,7 @@ def detect_colour(image, lower_colour_boundary, upper_colour_boundary, is_target
           cx = int(M['m10']/M['m00'])
           cy = int(M['m01']/M['m00'])
       return flag, np.array([cx, cy])
+
 
 def is_cube(contour):
   approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
@@ -258,6 +260,26 @@ class image_converter:
 
     #print(np.degrees(angle))
 
+  def detect_joint_angle_4_green(self, image1, image2):
+    circleBlue = self.detect_colour2(image1, image2, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circleGreen = self.detect_colour2(image1, image2, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    circleRed = self.detect_colour2(image1, image2, self.RED_LOWER, self.RED_UPPER) #End effector
+    
+    #Blue
+    a = circleBlue
+    #Green
+    b = circleGreen
+    #Red
+    c = circleRed
+
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+
+    return np.degrees(angle)
+
   def detect_end_effector(self, image1, image2):
     yellow = np.array([398, 532])
     #there is a little offset on z, but the x and y coordinates calculated by the cameras are the same +- 1pixel
@@ -269,49 +291,6 @@ class image_converter:
     #print(r_xz, r_yz)
     return np.array([r_xz[0], r_yz[0], r_yz[1]])
 
-  def detect_targets(self, image1, image2, cube=False, sphere=True):
-    contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
-    contours2 = detect_colour(image2, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
-    #_, center_white1 = detect_colour(image1, self.WHITE_LOWER, self.WHITE_UPPER)
-    #flag_center1, center_yz = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
-    #flag_center2, center_xz = detect_colour(image2, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
-    #center_yz = np.array([398.0,532.0]) #yellow joint
-    #center_xz = np.array([398.0,533.0])
-    center_yz = np.array([398.0,545.0]) #the position of the target has to be detected with respect to the base
-    center_xz = center_yz
-    x, y, z = 0.0, 0.0, 0.0
-    if len(contours1) != 0:
-      for contour in contours1:
-        if cube and is_cube(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              y = self.PIXEL2METER*(cube_coords[0] - center_yz[0])
-              z = self.PIXEL2METER*(center_yz[1] - cube_coords[1])
-        elif sphere and is_sphere(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              y = self.PIXEL2METER*(sphere_coords[0]- center_yz[0])
-              z = self.PIXEL2METER*(center_yz[1] - sphere_coords[1])
-
-    if len(contours2) != 0:
-      for contour in contours2:
-        if cube and is_cube(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              x = self.PIXEL2METER*(cube_coords[0]- center_xz[0])
-              z = self.PIXEL2METER*(center_xz[1] - cube_coords[1])
-        if sphere and is_sphere(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              x = self.PIXEL2METER*(sphere_coords[0]- center_xz[0])
-              if len(contours1) == 0:
-                #if we cannot detect the sphere from camera 1 we can print z from camera 2 otherwise is redundant
-                z = self.PIXEL2METER*(center_xz[1] - sphere_coords[1])
-    return np.array([x,y,z])
 
   def pixel2meter(self, image):
     #this value is always the same... we should not calculate it all the time... =
@@ -457,6 +436,14 @@ class image_converter:
     cz = int(M1['m01']/M1['m00'])
     return np.array([cx, cy, cz])
 
+
+
+
+
+
+
+
+
   def detect_targets(self, image1, image2, cube=False, sphere=True):
     contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
     contours2 = detect_colour(image2, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
@@ -536,6 +523,19 @@ class image_converter:
     ######################################################################
     ######################################################################
 
+  def get_joint_state_2_1(self):
+    ######################################################################
+    #Joint state estimation for task 2.1
+    ######################################################################
+    angles = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
+    print(angles)
+
+    joint_4 = self.detect_joint_angle_4_green(self.cv_image1, self.cv_image2)
+    print(180 - joint_4)
+    ######################################################################
+    ######################################################################
+    ######################################################################
+    
 
   def detect_targets_2_2(self):
     ######################################################################
@@ -562,8 +562,9 @@ class image_converter:
 
   def robot_clock_tick(self):
     #self.move_joints_2_1()
+    self.get_joint_state_2_1()
     #self.detect_targets_2_2()
-    self.forward_kinematics_3_1()
+    #self.forward_kinematics_3_1()
 
 
 
