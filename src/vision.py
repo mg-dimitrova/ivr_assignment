@@ -260,6 +260,18 @@ class image_converter:
 
     #print(np.degrees(angle))
 
+  def detect_joint_angle_2_blue(self, image1, image2):
+    circleBlue = self.detect_colour2(image1, image2, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circleGreen = self.detect_colour2(image1, image2, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    theta = np.arcsin((circleGreen[1] - circleBlue[1])/ 100) #Max length for link
+    return theta
+
+  def detect_joint_angle_3_blue(self, image1, image2):
+    circleBlue = self.detect_colour2(image1, image2, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circleGreen = self.detect_colour2(image1, image2, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    theta = np.arcsin((circleGreen[0] - circleBlue[0])/ 100) #Max length for link
+    return theta
+
   def detect_joint_angle_4_green(self, image1, image2):
     circleBlue = self.detect_colour2(image1, image2, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
     circleGreen = self.detect_colour2(image1, image2, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
@@ -278,8 +290,9 @@ class image_converter:
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
     angle = np.arccos(cosine_angle)
 
-    return np.degrees(angle)
-
+    #return np.degrees(angle)
+    return angle
+  
   def detect_end_effector(self, image1, image2):
     yellow = np.array([398, 532])
     #there is a little offset on z, but the x and y coordinates calculated by the cameras are the same +- 1pixel
@@ -522,8 +535,14 @@ class image_converter:
     angles = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
     print(angles)
 
+    joint_2 = self.detect_joint_angle_2_blue(self.cv_image1, self.cv_image2)
+    print("Joint 2:", joint_2)
+
+    joint_3 = self.detect_joint_angle_3_blue(self.cv_image1, self.cv_image2)
+    print("Joint 3:", joint_3)
+
     joint_4 = self.detect_joint_angle_4_green(self.cv_image1, self.cv_image2)
-    print(180 - joint_4)
+    print("Joint 4:", np.pi - joint_4)
     ######################################################################
     ######################################################################
     ######################################################################
@@ -563,7 +582,7 @@ class image_converter:
 
   def robot_clock_tick(self):
     #self.move_joints_2_1()
-    #self.get_joint_state_2_1()
+    self.get_joint_state_2_1()
     #self.detect_targets_2_2()
     #self.forward_kinematics_3_1()
 
