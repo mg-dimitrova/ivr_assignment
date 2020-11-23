@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -94,6 +95,11 @@ class image_converter:
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     # initialize a subscriber to receive messages from a topic named /robot/camera1/image_raw and use callback function to recieve data
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
+
+    # initialize a subscriber to receive messages from a topic named /robot/joint_states
+    self.joint_states_sub = rospy.Subscriber("/robot/joint_states",JointState,self.joint_states_callback)
+
+
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
     #initiate the joint publishers to send the sinusoidal joints angles to the robot
@@ -580,13 +586,95 @@ class image_converter:
     ######################################################################
 
 
+  def joint_state_estimation_4_3(self):
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    lower_black = np.array([0, 5, 50], np.uint8)
+    upper_black = np.array([179, 50, 255], np.uint8)
+    
+    hsv1 = cv2.cvtColor(image1, cv2.COLOR_BGR2HSV)
+    mask1 = cv2.inRange(hsv1, lower_colour_boundary, upper_colour_boundary)
+
+    #hsv2 = cv2.cvtColor(image2, cv2.COLOR_BGR2HSV)
+    #mask2 = cv2.inRange(hsv2, lower_colour_boundary, upper_colour_boundary)
+    
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing1 = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel)
+    #closing2 = cv2.morphologyEx(mask2, cv2.MORPH_CLOSE, kernel)
+    
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret1, thresh1 = cv2.threshold(closing1, 127, 255, 0)
+    #ret2, thresh2 = cv2.threshold(closing2, 127, 255, 0)
+    
+    contours1, hierarchy1 = cv2.findContours(thresh1, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    
+    print(len(contours1))
+    
+    """
+    for contour in contours1:
+      if is_sphere(contour):
+        cnt1 = contour
+    else:
+      cnt1 = contours1[0]
+    
+    M1 = cv2.moments(cnt1)
+    
+    
+    contours2, hierarchy2 = cv2.findContours(thresh2, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    
+    if target != None:
+      for contour in contours2:
+        if is_sphere(contour):
+          cnt2 = contour
+    else:
+      cnt2 = contours2[0]
+    M2 = cv2.moments(cnt2)
+
+    #cx, cy, cz = 0.0 , 0.0, 0.0
+    #find the centre of mass from the moments estimation
+    #Cam2 = X
+    cx = int(M2['m10']/M2['m00'])
+    
+    #Cam1 = Z/Y
+    cy = int(M1['m10']/M1['m00'])
+    cz = int(M1['m01']/M1['m00'])
+    return np.array([cx, cy, cz])
+    """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   def robot_clock_tick(self):
     #self.move_joints_2_1()
-    self.get_joint_state_2_1()
+    #self.get_joint_state_2_1()
     #self.detect_targets_2_2()
     #self.forward_kinematics_3_1()
-
-
+    
+    #self.joint_state_estimation_4_3()
+    print("")
 
 
     #joints_cam1, joints_cam2 = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
@@ -599,9 +687,18 @@ class image_converter:
     #self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), self.detect_colour2(self.cv_image1, self.cv_image2, self.ORANGE_LOWER, self.ORANGE_UPPER, "Sphere"))
 
 
+  def joint_states_callback(self,data):
+    #print(data.position)
 
-  
+    self.joint1_ros_val = data.position[0]
+    self.joint2_ros_val = data.position[1]
+    self.joint3_ros_val = data.position[2]
+    self.joint4_ros_val = data.position[3]
 
+    print(self.joint1_ros_val)
+    print(self.joint2_ros_val)
+    print(self.joint3_ros_val)
+    print(self.joint4_ros_val)
 
   def callback1(self,data):
   # Recieve the image
@@ -626,18 +723,6 @@ class image_converter:
     #cv2.waitKey(1)
 
     self.robot_clock_tick()
-
-
-
-
-
-
-
-
-
-
-
-
 
     """
     #estimate joint angles individually
