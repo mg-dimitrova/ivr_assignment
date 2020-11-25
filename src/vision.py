@@ -11,6 +11,9 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
+from matplotlib import pyplot as plt
+
+import math
 
 def detect_colour(image, lower_colour_boundary, upper_colour_boundary, is_target = False):
     #converting image from BGR to HSV color-space (easier to segment an image based on its color)
@@ -132,6 +135,9 @@ class image_converter:
     self.error = np.array([0.0,0.0,0.0], dtype ='float64')
     self.error_d = np.array([0.0,0.0,0.0], dtype ='float64')
 
+    self.initialized = False
+    self.initialize_joints()
+    
 
   def position_joint2(self, current_time):
     j2 = float((np.pi/2) * np.sin(np.pi/15 * current_time))
@@ -586,72 +592,251 @@ class image_converter:
     ######################################################################
 
 
-  def joint_state_estimation_4_3(self):
-    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
-    lower_black = np.array([0, 5, 50], np.uint8)
-    upper_black = np.array([179, 50, 255], np.uint8)
-    
-    hsv1 = cv2.cvtColor(image1, cv2.COLOR_BGR2HSV)
-    mask1 = cv2.inRange(hsv1, lower_colour_boundary, upper_colour_boundary)
+  
 
-    #hsv2 = cv2.cvtColor(image2, cv2.COLOR_BGR2HSV)
-    #mask2 = cv2.inRange(hsv2, lower_colour_boundary, upper_colour_boundary)
+  def calculateDistance(self, x1,y1,x2,y2):
+    dist = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    return dist
+
+
+
+
+  def initialize_joints(self):
+    #x,z
+    self.previous_joints = [[399, 392, 535], [396, 395, 469], [366, 436, 388], [318, 449, 317]]
+
+    """
+    x, z
+    (399.30084228515625, 535.677734375)
+    (396.0813903808594, 469.3604736328125)
+    (366.92529296875, 388.6264343261719)
+    (318.5, 317.0)
+
+    y, z
+    392.5 535.6500244140625
+    395.8019104003906 473.482421875
+    436.6764831542969 421.79412841796875
+    449.0 330.20001220703125
+    """
+    self.start_time = rospy.get_time() + 20
+
+    curr_time = Float64()
+    curr_time = rospy.get_time() - self.start_time 
+    self.joint2 = Float64()
+    self.joint2.data = self.position_joint2(curr_time)
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
+    self.joint4 = Float64()
+    self.joint4.data = self.position_joint4(curr_time)
+    self.robot_joint2_pub.publish(self.joint2)
+    self.robot_joint3_pub.publish(self.joint3)
+    self.robot_joint4_pub.publish(self.joint4)
+
+  def move_joints_4_3(self):
+    curr_time = rospy.get_time() - self.start_time
+    self.joint2 = Float64()
+    self.joint2.data = self.position_joint2(curr_time)
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
+    self.joint4 = Float64()
+    self.joint4.data = self.position_joint4(curr_time)
+    self.robot_joint2_pub.publish(self.joint2)
+    self.robot_joint3_pub.publish(self.joint3)
+    self.robot_joint4_pub.publish(self.joint4)  
+
+  def detect_joint_angle_2_black(self, joint2, joint4):   
+    #theta = np.arcsin((joint4[0] - joint2[0])/ 100) #Max length for link
+    theta = np.arctan2((joint2[1] - joint4[1]), (joint2[0] - joint4[0]))
+    print("2: ",np.degrees(theta))
+    return theta
+
+  def detect_joint_angle_3_black(self, joint2, joint3):
+    #print(joint3)
+    theta = np.arcsin((joint3[1] - joint2[1])/ 100) #Max length for link
+    print("3: ",np.degrees(theta))
+    return theta
+
+  def detect_joint_angle_4_black(self, joint2, joint3, end_effector):
+ 
+    a = np.array(joint2)
+    b = np.array(joint3)
+    c = np.array(end_effector)
+
+    ba = a - b
+    bc = b - c
+
+    x = joint3[0]-end_effector[0]
+    y = joint3[1]-end_effector[1]
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.sign(y)*np.arccos(cosine_angle)
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+
+    print(np.degrees(angle))
+    return angle
     
+
+  def joint_state_estimation_4_3(self):
+    #self.move_joints_4_3()
+
+    joints1 = []
+    joints2 = []
+    
+    hsv1 = cv2.cvtColor(self.cv_image1, cv2.COLOR_BGR2HSV)
+    mask1 = cv2.inRange(hsv1, np.array([0,0,0]), np.array([10,10,10])) #BLACK
+
+    hsv2 = cv2.cvtColor(self.cv_image2, cv2.COLOR_BGR2HSV)
+    mask2 = cv2.inRange(hsv2, np.array([0,0,0]), np.array([10,10,10])) #BLACK
+
+    img1 = self.cv_image1
+    gray1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
+
+    img2 = self.cv_image2
+    gray2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+
+    corners1 = cv2.goodFeaturesToTrack(mask1,5,0.20,20) #Val index 2 sets sensitivity of edge detection
+    corners1 = np.int0(corners1)
+
+    corners2 = cv2.goodFeaturesToTrack(mask2,5,0.20,20) #Val index 2 sets sensitivity of edge detection
+    corners2 = np.int0(corners2)
+
+    #Find points within 30 pixels of each other
+    for i in corners1:
+      i_x, i_y = i.ravel()
+      for j in corners1:
+        j_x, j_y = j.ravel() 
+        dist = self.calculateDistance(i_x, i_y, j_x, j_y)
+        
+        if dist < 30:
+          joints1.append([i,j])
+
+
+    #Find points within 30 pixels of each other
+    for i in corners2:
+      i_x, i_y = i.ravel()
+      for j in corners2:
+        j_x, j_y = j.ravel() 
+        dist = self.calculateDistance(i_x, i_y, j_x, j_y)
+        
+        if dist < 30:
+          joints2.append([i,j])
+
+    #Draw lines between those points
+    for points in joints1:
+      x_1, y_1 = points[0].ravel()
+      x_2, y_2 = points[1].ravel()
+      cv2.line(img1, (x_1, y_1), (x_2, y_2), (150, 0, 0), thickness=4, lineType=8)
+
+    #Draw lines between those points
+    for points in joints2:
+      x_1, y_1 = points[0].ravel()
+      x_2, y_2 = points[1].ravel()
+      cv2.line(img2, (x_1, y_1), (x_2, y_2), (150, 0, 0), thickness=4, lineType=8)
+
+    #Find contour on lines then cv2.minEnclosingCircle(c)
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    
+    mask_joints1 = cv2.inRange(img1, np.array([50,0,0]), np.array([250,0,0]))
+    
+    #hsv_joints = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mask_joints2 = cv2.inRange(img2, np.array([50,0,0]), np.array([250,0,0]))
+
     #generate kernel for morphological transformation
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
     
-    #applying closing (dilation followed by erosion)
-    #dilation allows to close black spots inside the mask
-    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
-    closing1 = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel)
-    #closing2 = cv2.morphologyEx(mask2, cv2.MORPH_CLOSE, kernel)
+    closing_joints1 = cv2.morphologyEx(mask_joints1, cv2.MORPH_CLOSE, kernel)
+
+    closing_joints2 = cv2.morphologyEx(mask_joints2, cv2.MORPH_CLOSE, kernel)
     
     #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
-    ret1, thresh1 = cv2.threshold(closing1, 127, 255, 0)
-    #ret2, thresh2 = cv2.threshold(closing2, 127, 255, 0)
+    ret1, thresh1 = cv2.threshold(closing_joints1, 127, 255, 0)
+
+    ret2, thresh2 = cv2.threshold(closing_joints2, 127, 255, 0)
     
-    contours1, hierarchy1 = cv2.findContours(thresh1, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    contours_joints1, hierarchy1 = cv2.findContours(thresh1, 1, 2) 
+
+    contours_joints2, hierarchy2 = cv2.findContours(thresh2, 1, 2) 
     
-    print(len(contours1))
     
-    """
-    for contour in contours1:
-      if is_sphere(contour):
-        cnt1 = contour
+    if len(contours_joints1) == 4:
+      for contour in contours_joints2:
+        x = 0
+
+        smallest_distance = 1000
+        joint_number = -1
+        ((y, z), radius) = cv2.minEnclosingCircle(contour)
+
+        for num, joint in enumerate(self.previous_joints):         
+          joint_distance = self.calculateDistance(y,z, joint[1], joint[2])
+
+          if joint_distance <= smallest_distance:
+            smallest_distance = joint_distance
+            joint_number = num
+            x = joint[0]
+        
+        self.previous_joints[joint_number] = [x, y, z]
     else:
-      cnt1 = contours1[0]
+      print("Image 1: 4 joints not found")  
+      #print((x, z))
+
     
-    M1 = cv2.moments(cnt1)
-    
-    
-    contours2, hierarchy2 = cv2.findContours(thresh2, 1, 2) #This returns multiple contours, so for orange we expect more than one
-    
-    if target != None:
-      for contour in contours2:
-        if is_sphere(contour):
-          cnt2 = contour
+
+    if len(contours_joints2) == 4:
+      for contour in contours_joints2:
+        y = 0
+        z = 0
+
+        smallest_distance = 1000
+        joint_number = -1
+        ((x, _), radius) = cv2.minEnclosingCircle(contour)
+
+        for num, joint in enumerate(self.previous_joints):
+          joint_distance = self.calculateDistance(x,z, joint[0], joint[2])
+
+          if joint_distance <= smallest_distance:
+            smallest_distance = joint_distance
+            joint_number = num
+            y = joint[1]
+            z = joint[2]
+        
+        self.previous_joints[joint_number] = [x, y, z]
     else:
-      cnt2 = contours2[0]
-    M2 = cv2.moments(cnt2)
-
-    #cx, cy, cz = 0.0 , 0.0, 0.0
-    #find the centre of mass from the moments estimation
-    #Cam2 = X
-    cx = int(M2['m10']/M2['m00'])
+      print("Image 2: 4 joints not found")  
+      #print((x, z))
     
-    #Cam1 = Z/Y
-    cy = int(M1['m10']/M1['m00'])
-    cz = int(M1['m01']/M1['m00'])
-    return np.array([cx, cy, cz])
+
+        
+    #THIS STUFF SHOWS A UI. DONT MESS WITH IT
     """
+    for i in corners1:
+        x,y = i.ravel()
+        cv2.circle(img1,(x,y),3,150,-1)
+    plt.imshow(img1)
+    plt.show(block=False)
+    plt.pause(30)
+    plt.close()
+    
+    for i in corners2:
+        x,y = i.ravel()
+        cv2.circle(img2,(x,y),3,150,-1)
+    plt.imshow(img2)
+    plt.show(block=False)
+    plt.pause(5)
+    plt.close()
+    """
+    #print(self.previous_joints[1], self.previous_joints[2], self.previous_joints[3])
+
+    #print(self.previous_joints[3])
+
+    self.detect_joint_angle_2_black(self.previous_joints[1], self.previous_joints[3])
+    self.detect_joint_angle_3_black(self.previous_joints[1], self.previous_joints[3])
+    #self.detect_joint_angle_4_black(self.previous_joints[1], self.previous_joints[2], self.previous_joints[3])
+    
 
 
 
-
-
-
-
-
+    #print(self.detect_joint_angle_4_black(self.previous_joints[1], self.previous_joints[2], self.previous_joints[3]))
 
 
 
@@ -668,13 +853,14 @@ class image_converter:
 
 
   def robot_clock_tick(self):
+    
+    
     #self.move_joints_2_1()
     #self.get_joint_state_2_1()
     #self.detect_targets_2_2()
     #self.forward_kinematics_3_1()
-    
-    #self.joint_state_estimation_4_3()
-    print("")
+    self.joint_state_estimation_4_3()
+    #print("")
 
 
     #joints_cam1, joints_cam2 = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
@@ -695,10 +881,10 @@ class image_converter:
     self.joint3_ros_val = data.position[2]
     self.joint4_ros_val = data.position[3]
 
-    print(self.joint1_ros_val)
-    print(self.joint2_ros_val)
-    print(self.joint3_ros_val)
-    print(self.joint4_ros_val)
+    #print(self.joint1_ros_val)
+    #print(self.joint2_ros_val)
+    #print(self.joint3_ros_val)
+    #print(self.joint4_ros_val)
 
   def callback1(self,data):
   # Recieve the image
