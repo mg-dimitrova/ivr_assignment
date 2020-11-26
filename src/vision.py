@@ -510,9 +510,9 @@ class image_converter:
 
   def closed_loop(self):
     joints = self.joints_ros
-    Kp = 100* np.eye(3)
-    Kd = 1* np.eye(3)
-    Ki = 1 * np.eye(3)
+    Kp = -1.0* np.eye(3)
+    Ki = 0.* np.eye(3)
+    Kd = 0. * np.eye(3)
     invJ = self.calculate_pseudo_invert_jacobian(joints)
     current_time = rospy.get_time()
     dt = current_time - self.time_previous_step2
@@ -641,8 +641,8 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
     #cv2.imwrite('image_copy1.png', self.cv_image1)
-    #im1=cv2.imshow('window1', self.cv_image1)
-    #cv2.waitKey(1)
+    im1=cv2.imshow('window1', self.cv_image1)
+    cv2.waitKey(1)
 
   def callback2(self,data):
   # Recieve the image
