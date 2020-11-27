@@ -514,9 +514,9 @@ class image_converter:
 
   def closed_loop(self):
     joints = self.joints_ros
-    Kp = -1.0* np.eye(3)
-    Ki = 0.* np.eye(3)
-    Kd = 0. * np.eye(3)
+    Kp = 2.0* np.eye(3)
+    Ki = 0.2* np.eye(3)
+    Kd = 0.15 * np.eye(3)
     invJ = self.calculate_pseudo_invert_jacobian(joints)
     current_time = rospy.get_time()
     dt = current_time - self.time_previous_step2
@@ -541,9 +541,9 @@ class image_converter:
     #Calculate FK for task 3.1
     ######################################################################
     #print(self.joints_ros)
-    calculated_value = self.forward_kinematics([0.6, 0.75, 0.4, 0.4])
+    calculated_value = self.forward_kinematics([0.0, 0.25, 0.5, 0.4])
     actual_value = self.detect_colour2(self.cv_image1, self.cv_image2, self.RED_LOWER, self.RED_UPPER)
-    #print(calculated_value)
+    print(calculated_value)
     print(self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), actual_value))
     ######################################################################
     ######################################################################
@@ -565,7 +565,6 @@ class image_converter:
     ######################################################################
     ######################################################################
     ######################################################################
-
 
   def calculateDistance(self, x1,y1,x2,y2):
     dist = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
@@ -810,9 +809,9 @@ class image_converter:
     #joints = self.get_joint_state_2_1()
     #self.publish_joints_vision(joints)
     #self.detect_targets_2_2(from_base=True)
-    #self.forward_kinematics_3_1()
+    self.forward_kinematics_3_1()
     #self.closed_loop_control_3_2()
-    self.joint_state_estimation_4_3()
+    #self.joint_state_estimation_4_3()
 
   def joint_states_callback(self,data):
     #reading the joints values from the topic
@@ -825,8 +824,8 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
     #cv2.imwrite('image_copy1.png', self.cv_image1)
-    im1=cv2.imshow('window1', self.cv_image1)
-    cv2.waitKey(1)
+    #im1=cv2.imshow('window1', self.cv_image1)
+    #cv2.waitKey(1)
 
   def callback2(self,data):
   # Recieve the image
@@ -848,22 +847,32 @@ class image_converter:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
       
       #publish joint position according to sinusoidal trend or to output of closed_loop
+      #Task 2.1 and 3.2
       #self.robot_joint1_pub.publish(self.joint1)
       #self.robot_joint2_pub.publish(self.joint2)
       #self.robot_joint3_pub.publish(self.joint3)
       #self.robot_joint4_pub.publish(self.joint4)
+      ########################################
       #publish the joint position calculated using vision
+      #Task 2.1
       #self.joint1_vision_pub.publish(self.joint1_vision)
       #self.joint2_vision_pub.publish(self.joint2_vision)
       #self.joint3_vision_pub.publish(self.joint3_vision)
       #self.joint4_vision_pub.publish(self.joint4_vision)
+      ########################################
       #publish the target position calculated using vision
+      #Task 2.2
       #self.sphere_target_x_pub.publish(self.sphere_x)
       #self.sphere_target_y_pub.publish(self.sphere_y)
       #self.sphere_target_z_pub.publish(self.sphere_z)
+      ########################################
       #publish end effector position calculated with vision and with fk
+      #Task 3.1
       #self.end_effector_fk_pub.publish(self.end_effector_fk)
       #self.end_effector_vision_pub.publish(self.end_effector_vision)
+      ########################################
+      #Publish the position of the end effector output of the closed loop
+      #Task 3.2
       self.xe_pub.publish(self.xe)
       self.ye_pub.publish(self.ye)
       self.ze_pub.publish(self.ze)
