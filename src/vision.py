@@ -4,6 +4,7 @@ import roslib
 import sys
 import rospy
 import cv2
+import math
 import numpy as np
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
@@ -93,13 +94,11 @@ class image_converter:
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     # initialize a subscriber to receive messages from a topic named /robot/camera1/image_raw and use callback function to recieve data
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
-
     # initialize a subscriber to receive messages from a topic named /robot/joint_states
     self.joint_states_sub = rospy.Subscriber("/robot/joint_states",JointState,self.joint_states_callback)
-
-
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
+
     #initiate the joint publishers to send the sinusoidal joints angles to the robot
     self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=10)
     self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
@@ -107,15 +106,12 @@ class image_converter:
     self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
     # initialize the time variables
     self.time_joints = rospy.get_time()
-    #self.time_joint4 = rospy.get_time()
     #initiate publishers for joints' angular position estimated from camera 1 and 2
-    #self.joint1_cam1_pub = rospy.Publisher("/joint1_camera1",Float64, queue_size=10)
     self.joint1_vision_pub = rospy.Publisher("/joint1",Float64, queue_size=10)
     self.joint2_vision_pub = rospy.Publisher("/joint2",Float64, queue_size=10)
     self.joint3_vision_pub = rospy.Publisher("/joint3",Float64, queue_size=10)
     self.joint4_vision_pub = rospy.Publisher("/joint4",Float64, queue_size=10)
     self.previous_joints = np.array([0.0, 0.0, 0.0, 0.0], dtype ='float64')
-    #self.joints_cam1_pub = rospy.Publisher("/joints_cam1", Float64MultiArray, queue_size=10)
     self.error_joint_pub = rospy.Publisher("/error_joint", Float64, queue_size=10)
     self.error_joint = 0.0
     #publishers for the target coordinates
@@ -123,8 +119,6 @@ class image_converter:
     self.sphere_target_y_pub = rospy.Publisher("/sphere_y", Float64, queue_size=10)
     self.sphere_target_z_pub = rospy.Publisher("/sphere_z", Float64, queue_size=10)
     #publishers for the end_effector
-    self.end_effector_vision_pub = rospy.Publisher("/end_effector_vision", Float64MultiArray, queue_size=10)
-    self.end_effector_fk_pub = rospy.Publisher("/end_effector_fk", Float64MultiArray, queue_size=10)
     self.xe_pub = rospy.Publisher("/xe",Float64, queue_size=10)
     self.ye_pub = rospy.Publisher("/ye",Float64, queue_size=10)
     self.ze_pub = rospy.Publisher("/ze",Float64, queue_size=10)
@@ -133,11 +127,9 @@ class image_converter:
     self.time_previous_step2 = np.array([rospy.get_time()], dtype='float64')
     self.error = np.array([0.0,0.0,0.0], dtype ='float64')
     self.error_d = np.array([0.0,0.0,0.0], dtype ='float64')
-
     self.initialize_joints()
-
+    self.time_offset = Float64()
     self.time_offset = -1
-
 
   def position_joint2(self, current_time):
     j2 = float((np.pi/2) * np.sin(np.pi/15 * current_time))
@@ -150,57 +142,6 @@ class image_converter:
   def position_joint4(self, current_time):
     j4 = float((np.pi/2) * np.sin(np.pi/20 * current_time))
     return j4
-
-  def detect_individual_joint_angles(self, image1, image2):
-    #assuming joint one does not rotate
-    '''
-    joint1_cam1, joint1_cam2 = self.previous_joints[0], self.previous_joints[0]
-    joint2_cam1, joint2_cam2 = self.previous_joints[1], self.previous_joints[1]
-    joint3_cam1, joint3_cam2 = self.previous_joints[2], self.previous_joints[2]
-    joint4_cam1, joint4_cam2 = self.previous_joints[3], self.previous_joints[3]
-    '''
-    joint1 = self.previous_joints[0]
-    joint2 = self.previous_joints[1]
-    joint3 = self.previous_joints[2]
-    joint4 = self.previous_joints[3]
-    #detecting the objects using colour recognition
-    flagBlue1, circleBlue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
-    flagBlue2, circleBlue2 = detect_colour(image2, self.BLUE_LOWER, self.BLUE_UPPER)
-    flagGreen1, circleGreen1 = detect_colour(image1, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
-    flagGreen2, circleGreen2 = detect_colour(image2, self.GREEN_LOWER, self.GREEN_UPPER)
-    flagRed1, circleRed1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER) #End effector
-    flagRed2, circleRed2 = detect_colour(image2, self.RED_LOWER, self.RED_UPPER)
-    #calculating the joints
-    joint2_cam1 = np.arctan2((circleBlue1[0] - circleGreen1[0]), (circleBlue1[1] - circleGreen1[1]))
-    joint2_cam2 = -np.arctan2((circleBlue2[0] - circleGreen2[0]), (circleBlue2[1] - circleGreen2[1]))
-    joint3_cam1 = np.arctan2((circleBlue1[0] - circleGreen1[0]), (circleBlue1[1] - circleGreen1[1]))
-    joint3_cam2 = -np.arctan2((circleBlue2[0] - circleGreen2[0]), (circleBlue2[1] - circleGreen2[1]))
-    joint4_cam1 = np.arctan2((circleGreen1[0] - circleRed1[0]),(circleGreen1[1] - circleRed1[1]))
-    joint4_cam2 = -np.arctan2((circleGreen2[0] - circleRed2[0]),(circleGreen2[1] - circleRed2[1]))
-    if flagBlue1 != 1 and flagGreen1 != 1:
-      #print(joint2_cam1, joint2_cam2)
-      joint2 = joint2_cam1
-      self.previous_joints[1] = joint2
-    elif flagBlue2 != 1 or flagGreen2 != 1:
-      #print(joint2_cam1, joint2_cam2)
-      joint2 = joint2_cam2
-      self.previous_joints[1] = joint2
-    if flagBlue2 != 1 or flagGreen2 != 1:
-      #from camera 2 the x axis increases going left, opposite of the reference system of the robot
-      joint3 = np.arctan2((circleGreen2[0] - circleBlue2[0]), (circleBlue2[1] - circleGreen2[1]))
-      self.previous_joints[2] = joint3
-    elif flagBlue1 != 1 or flagGreen1 != 1:
-      joint3 = np.arctan2((circleBlue1[0] - circleGreen1[0]), (circleBlue1[1] - circleGreen1[1]))
-      self.previous_joints[2] = joint3
-    if flagGreen1 != 1 or flagRed1 != 1:
-      joint4 = np.arctan2((circleGreen1[0] - circleRed1[0]),(circleGreen1[1] - circleRed1[1])) #- joint2_cam1 - joint3_cam2
-      self.previous_joints[3] = joint4
-    elif flagGreen2 != 1 or flagRed2 != 1:
-      joint4= np.arctan2((circleRed2[0] - circleGreen2[0]),(circleGreen2[1] - circleRed2[1])) #- joint2_cam2 - joint3_cam2
-      self.previous_joints[3] = joint4
-
-    #return np.array([joint1_cam1, joint2_cam1, joint3_cam1, joint4_cam1]), np.array([joint1_cam2, joint2_cam2, joint3_cam2, joint4_cam2])
-    return np.array([joint1, joint2, joint3, joint4])
 
   def detect_joint_angle_2_blue(self, image1, image2):
     _, circleBlue = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER)
@@ -218,9 +159,6 @@ class image_converter:
     return theta
 
   def detect_joint_angle_4_green(self, image1, image2):
-    #circleBlue = self.detect_colour2(image1, image2, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
-    #circleGreen = self.detect_colour2(image1, image2, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
-    #circleRed = self.detect_colour2(image1, image2, self.RED_LOWER, self.RED_UPPER) #End effector
     _, Blue1 = detect_colour(image1, self.BLUE_LOWER, self.BLUE_UPPER)
     _, Green1 = detect_colour(image1,self.GREEN_LOWER, self.GREEN_UPPER)
     _, Red1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER)
@@ -250,6 +188,7 @@ class image_converter:
     return angle
 
   def detect_colour2(self, image1, image2, lower_colour_boundary, upper_colour_boundary, target=None):
+    #same as detect_colour but returns coordinates in 3D
     #converting image from BGR to HSV color-space (easier to segment an image based on its color)
     hsv1 = cv2.cvtColor(image1, cv2.COLOR_BGR2HSV)
     mask1 = cv2.inRange(hsv1, lower_colour_boundary, upper_colour_boundary)
@@ -301,57 +240,6 @@ class image_converter:
     cz = int(M1['m01']/M1['m00'])
     return np.array([cx, cy, cz])
 
-  def detect_targets(self, image1, image2, cube=False, sphere=True):
-    _, contours1 = detect_colour(image1, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
-    _, contours2 = detect_colour(image2, self.ORANGE_LOWER, self.ORANGE_UPPER, is_target = True)
-    #print(len(contours1), (contours2))
-    #_, center_white1 = detect_colour(image1, self.WHITE_LOWER, self.WHITE_UPPER)
-    #print(center_white1)
-    #flag_center1, center_yz = detect_colour(image1, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
-    #flag_center2, center_xz = detect_colour(image2, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
-    #center_yz = np.array([398.0,532.0]) #yellow joint
-    #center_xz = np.array([398.0,533.0])
-    center_yz = np.array([398.0,545.0]) #white base
-    center_xz = center_yz
-
-    target_coordinates_x = 0.0
-    target_coordinates_y = 0.0
-    target_coordinates_z = 0.0
-
-    if len(contours1) != 0:
-      for contour in contours1:
-        if cube and is_cube(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              self.cube_y = self.PIXEL2METER*(cube_coords[0] - center_yz[0])
-              self.cube_z = self.PIXEL2METER*(center_yz[1] - cube_coords[1])
-        elif sphere and is_sphere(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              target_coordinates_y = sphere_coords[0]
-              target_coordinates_z = sphere_coords[1]
-    else:
-      print("no contour1")
-    if len(contours2) != 0:
-      for contour in contours2:
-        if cube and is_cube(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              self.cube_x = self.PIXEL2METER*(cube_coords[0]- center_xz[0])
-              self.cube_z = self.PIXEL2METER*(center_xz[1] - cube_coords[1])
-        if sphere and is_sphere(contour):
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-              sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-              target_coordinates_x = sphere_coords[0]
-    else:
-      print("no contour 2")
-
-      return [target_coordinates_x, target_coordinates_y, target_coordinates_z]
-
   def get_target_x(self, source_point, target_point):
     return self.pixels_to_meters(target_point[0] - source_point[0])
 
@@ -383,18 +271,10 @@ class image_converter:
     ######################################################################
     #Joint state estimation for task 2.1
     ######################################################################
-    #angles = self.detect_individual_joint_angles(self.cv_image1, self.cv_image2)
-    #print(angles)
     joint_1 = 0.0
-
     joint_2 = self.detect_joint_angle_2_blue(self.cv_image1, self.cv_image2)
-    #print("Joint 2:", joint_2)
-
     joint_3 = self.detect_joint_angle_3_blue(self.cv_image1, self.cv_image2)
-    #print("Joint 3:", joint_3)
-
     joint_4 = self.detect_joint_angle_4_green(self.cv_image1, self.cv_image2)
-    #print("Joint 4:", np.pi - joint_4)
     joints = np.array([joint_1, joint_2, joint_3, joint_4])
     return joints
     ######################################################################
@@ -422,8 +302,6 @@ class image_converter:
     self.sphere_x = Float64()
     self.sphere_y = Float64()
     self.sphere_z = Float64()
-    #coordinates = self.detect_targets(self.cv_image1, self.cv_image2, sphere=True)
-    #print(coordinates)
     self.sphere_x.data = coordinates[0]
     self.sphere_y.data = coordinates[1]
     self.sphere_z.data = coordinates[2]
@@ -437,10 +315,8 @@ class image_converter:
     #there is a little offset on z, but the x and y coordinates calculated by the cameras are the same +- 1pixel
     flagRed1, circleRed1 = detect_colour(image1, self.RED_LOWER, self.RED_UPPER) #End effector
     flagRed2, circleRed2 = detect_colour(image2, self.RED_LOWER, self.RED_UPPER)
-    #joint 1 is assumed not to be changing for task 2.1, thus joint 3 can be detected only from camera2
     r_yz = self.PIXEL2METER*(yellow-circleRed1)
     r_xz = self.PIXEL2METER*(yellow-circleRed2)
-    #print(r_xz, r_yz)
     return np.array([r_xz[0], r_yz[0], r_yz[1]])
 
   def pixels_to_meters(self, pixels):
@@ -462,7 +338,6 @@ class image_converter:
     return np.array([xe, ye, ze])
 
   def calculate_jacobian(self, joints):
-    #t1, t2, t3, t4 = self.joint1_cam1, self.joint2_cam1, self.joint3_cam1, self.joint4_cam1
     t1, t2, t3, t4 = joints[0], joints[1], joints[2], joints[3]
     #l1 = 2.5 #l2=0
     l3 = 3.5
@@ -483,26 +358,9 @@ class image_converter:
     return J
 
   def calculate_pseudo_invert_jacobian(self,joints):
-    #check if the inv matrix has to be changed in 3D -> jacobian is 3x4
     J = self.calculate_jacobian(joints)
     pinv_J = np.linalg.pinv(J)
     return pinv_J
-
-  def control_open(self, joints):
-    #initiate time variable
-    current_time = rospy.get_time()
-    dt = current_time - self.time_previous_step
-    self.time_previous_step = current_time
-    #calculate pseudo inverse Jacobian
-    invJ = self.calculate_pseudo_invert_jacobian(joints)
-    #desired position from target
-    #x_d = self.detect_targets(self.cv_image1, self.cv_image2, sphere=True)
-    target = self.detect_targets_2_2()
-    self.error_d = (target - self.error)/dt
-    self.error = target
-    qdot = np.dot(invJ,self.error_d.transpose())
-    q = joints + dt * qdot
-    return q
 
   def publish_end_effector(self, pe):
     self.xe = Float64()
@@ -514,14 +372,13 @@ class image_converter:
 
   def closed_loop(self):
     joints = self.joints_ros
-    Kp = 2.0* np.eye(3)
-    Ki = 0.2* np.eye(3)
+    Kp = 2.0 * np.eye(3)
+    Ki = 0.2 * np.eye(3)
     Kd = 0.15 * np.eye(3)
     invJ = self.calculate_pseudo_invert_jacobian(joints)
     current_time = rospy.get_time()
     dt = current_time - self.time_previous_step2
     self.time_previous_step2 = current_time
-    #x_d = self.detect_target_range(self.detect_colour2(self.cv_image1, self.cv_image2, self.YELLOW_LOWER, self.YELLOW_UPPER), self.detect_colour2(self.cv_image1, self.cv_image2, self.ORANGE_LOWER, self.ORANGE_UPPER, "Sphere"))
     x_d = self.detect_targets_2_2()
     print(x_d)
     x_e = self.detect_end_effector(self.cv_image1, self.cv_image2)
@@ -533,7 +390,7 @@ class image_converter:
     self.error = err
     qdot = np.dot(invJ, (np.dot(Kp, self.error.transpose()) + np.dot(Kd, self.error_d.transpose()) + np.dot(Ki, self.error_i.transpose())))
     q = joints + dt * qdot
-    #print(q)
+
     return q
 
   def forward_kinematics_3_1(self):
@@ -580,7 +437,7 @@ class image_converter:
     """
     self.previous_joints = [[399.5, 396.0, 536.0], [400.0, 393.0, 457.0], [434.0, 352.0, 381.0], [456.0, 309.0, 333.0]]
       
-    curr_time = Float64()
+    self.time_offset = Float64()
     self.time_offset = rospy.get_time()
     
     curr_time = rospy.get_time() - self.time_offset + 1
@@ -778,9 +635,9 @@ class image_converter:
     ja4 = self.detect_joint_angle_4_black(self.previous_joints[1], self.previous_joints[2], self.previous_joints[3])
    
     #publish joint positions as observed
-    self.joint2_cam1_pub.publish(ja2)
-    self.joint3_cam1_pub.publish(ja3)
-    self.joint4_cam1_pub.publish(ja4)
+    self.joint2_vision_pub.publish(ja2)
+    self.joint3_vision_pub.publish(ja3)
+    self.joint4_vision_pub.publish(ja4)
 
     #Display OpenCV image
     """
@@ -805,13 +662,21 @@ class image_converter:
     ######################################################################
 
   def robot_clock_tick(self):
-    #self.move_joints_2_1()
+    #uncomment to have the reults of the related task
+    ### the relevant topics for the task should also be uncommented ###
+
+    #Task 1
+    self.move_joints_2_1()
     #joints = self.get_joint_state_2_1()
     #self.publish_joints_vision(joints)
     #self.detect_targets_2_2(from_base=True)
-    self.forward_kinematics_3_1()
+
+    #Task 2
+    #self.forward_kinematics_3_1()
     #self.closed_loop_control_3_2()
-    #self.joint_state_estimation_4_3()
+
+    #Task 3
+    self.joint_state_estimation_4_3()
 
   def joint_states_callback(self,data):
     #reading the joints values from the topic
@@ -823,6 +688,7 @@ class image_converter:
       self.cv_image1 = self.bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
       print(e)
+    #uncomment to save the image or to show it
     #cv2.imwrite('image_copy1.png', self.cv_image1)
     #im1=cv2.imshow('window1', self.cv_image1)
     #cv2.waitKey(1)
@@ -833,12 +699,12 @@ class image_converter:
       self.cv_image2 = self.bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
       print(e)
-
     # Uncomment if you want to save the image
-    #cv2.imwrite('image_copy2.png', self.cv_image2)
-    #im2=cv2.imshow('window2', self.cv_image2)
-    #cv2.waitKey(1)
-
+    '''
+    cv2.imwrite('image_copy2.png', self.cv_image2)
+    im2=cv2.imshow('window2', self.cv_image2)
+    cv2.waitKey(1)
+    '''
     self.robot_clock_tick()
 
     # Publish the results
@@ -849,33 +715,33 @@ class image_converter:
       #publish joint position according to sinusoidal trend or to output of closed_loop
       #Task 2.1 and 3.2
       #self.robot_joint1_pub.publish(self.joint1)
-      #self.robot_joint2_pub.publish(self.joint2)
-      #self.robot_joint3_pub.publish(self.joint3)
-      #self.robot_joint4_pub.publish(self.joint4)
-      ########################################
-      #publish the joint position calculated using vision
+      self.robot_joint2_pub.publish(self.joint2)
+      self.robot_joint3_pub.publish(self.joint3)
+      self.robot_joint4_pub.publish(self.joint4)
+
       #Task 2.1
+      #publish the joint position calculated using vision
       #self.joint1_vision_pub.publish(self.joint1_vision)
       #self.joint2_vision_pub.publish(self.joint2_vision)
       #self.joint3_vision_pub.publish(self.joint3_vision)
       #self.joint4_vision_pub.publish(self.joint4_vision)
-      ########################################
-      #publish the target position calculated using vision
+
       #Task 2.2
+      #publish the target position calculated using vision
       #self.sphere_target_x_pub.publish(self.sphere_x)
       #self.sphere_target_y_pub.publish(self.sphere_y)
       #self.sphere_target_z_pub.publish(self.sphere_z)
-      ########################################
-      #publish end effector position calculated with vision and with fk
-      #Task 3.1
-      #self.end_effector_fk_pub.publish(self.end_effector_fk)
-      #self.end_effector_vision_pub.publish(self.end_effector_vision)
-      ########################################
-      #Publish the position of the end effector output of the closed loop
+
       #Task 3.2
-      self.xe_pub.publish(self.xe)
-      self.ye_pub.publish(self.ye)
-      self.ze_pub.publish(self.ze)
+      #Publish the position of the end effector output of the closed loop
+      #self.xe_pub.publish(self.xe)
+      #self.ye_pub.publish(self.ye)
+      #self.ze_pub.publish
+
+      #Task 4
+      #Publish the joints of the all-black robot
+      #joints are published within joint_state_estimation_4_3
+
     except CvBridgeError as e:
       print(e)
 
