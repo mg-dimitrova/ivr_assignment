@@ -128,7 +128,7 @@ class image_converter:
     self.error = np.array([0.0,0.0,0.0], dtype ='float64')
     self.error_d = np.array([0.0,0.0,0.0], dtype ='float64')
     self.initialize_joints()
-    self.time_offset = Float64()
+    self.time_offset = None
     self.time_offset = -1
 
   def position_joint2(self, current_time):
