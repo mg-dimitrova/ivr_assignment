@@ -10,8 +10,90 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
+def detect_colour(image, lower_colour_boundary, upper_colour_boundary):
+    #DOESN'T SOLVE FOR OVERLAPPING COLOURS
+
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    flag = 0
+    cx, cy = 0.0, 0.0
+    if len(contours) == 0:
+      flag = 1
+    else:
+      cnt = contours[0]
+      #estimate moments
+      M = cv2.moments(cnt)
+      if M['m00'] == 0:
+        flag = 1
+      else:
+        #find the centre of mass from the moments estimation
+        cx = int(M['m10']/M['m00'])
+        cy = int(M['m01']/M['m00'])
+
+
+    #Returns X/Z
+    return flag, np.array([cx, cy])
+
+def detect_colour2(image, lower_colour_boundary, upper_colour_boundary):
+    #DOESN'T SOLVE FOR OVERLAPPING COLOURS
+
+    #converting image from BGR to HSV color-space (easier to segment an image based on its color)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    mask = cv2.inRange(hsv, lower_colour_boundary, upper_colour_boundary)
+    #generate kernel for morphological transformation
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+    #applying closing (dilation followed by erosion)
+    #dilation allows to close black spots inside the mask
+    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
+    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
+    ret, thresh = cv2.threshold(closing, 127, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, 1, 2) #This returns multiple contours, so for orange we expect more than one
+    return contours
+
+def is_cube(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  if len(approx) < 8:
+    return True
+  return False
+
+def is_sphere(contour):
+  approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+  area = cv2.contourArea(contour)
+  print(len(approx))
+  if ((len(approx) > 8) & (area > 30)):
+    return True
+  return False
 
 class image_converter:
+
+  YELLOW_LOWER = np.array([20,100,100])
+  YELLOW_UPPER = np.array([40,255,255])
+
+  BLUE_LOWER = np.array([110,50,50])
+  BLUE_UPPER = np.array([130,255,255])
+
+  GREEN_LOWER = np.array([50, 100, 100])
+  GREEN_UPPER = np.array([70,255,255])
+
+  RED_LOWER = np.array([0,100,100])
+  RED_UPPER = np.array([10, 255, 255])  
+
+  ORANGE_LOWER = np.array([9,100,100])
+  ORANGE_UPPER = np.array([29, 255, 255])
 
   # Defines publisher and subscriber
   def __init__(self):
@@ -24,115 +106,99 @@ class image_converter:
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
     #initiate the joint publishers
+    self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
     self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
+    self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
     # initialize the variable for the starting time
+    self.time_previous_step = rospy.get_time()
     self.time_joint3 = rospy.get_time()
+    self.joint1_cam2_pub = rospy.Publisher("/joint1_camera2",Float64, queue_size=10)
+    self.joint2_cam2_pub = rospy.Publisher("/joint2_camera2",Float64, queue_size=10)
+    self.joint3_cam2_pub = rospy.Publisher("/joint3_camera2",Float64, queue_size=10)
+    self.joint4_cam2_pub = rospy.Publisher("/joint4_camera2",Float64, queue_size=10)
+    #publisher for the spherical target
+    self.sphere_target_x_pub = rospy.Publisher("/sphere_x_camera1",Float64, queue_size=10)
+    self.sphere_target_z_pub = rospy.Publisher("/sphere_z_camera1",Float64, queue_size=10)
 
   #define sinusoidal trajectory for task 2.1
-  def position_joint3(self):
-    # get current time
-    curr_time = np.array([rospy.get_time() - self.time_joint3])
-    #joint 3 rotates around the y axis, the movement would be visible from camera 2 in the zx plane
-    j3 = float((np.pi/2) * np.sin(np.pi/18 * curr_time))
+  def position_joint2(self, current_time):
+    #joint 2 rotates around the x axis
+    #the sinusoidal movement would be visible from camera 1 on the yz plane
+    j2 = float((np.pi/2) * np.sin(np.pi/15 * current_time))
+    return j2
+
+  def position_joint3(self, current_time):
+    j3 = float((np.pi/2) * np.sin(np.pi/18 * current_time))
     return j3
 
-  def detect_yellow(self, image):
-    #converting image from BGR to HSV color-space
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    #define boundaries for yellow in HSV
-    #the boundaries are found using the method described in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_colorspaces/py_colorspaces.html?highlight=inrange
-    lower = np.array([20,100,100])
-    upper = np.array([40,255,255])
-    #generating mask to get yellow joint
-    mask = cv2.inRange(hsv, lower, upper)
-    #generate kernel for morphological transformation
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    #applying closing (dilation followed by erosion)
-    #dilation allows to close black spots inside the mask
-    #erosion allows to return to dimension close to the original ones for more accurate estimation of the center
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    #estimating the treshold and contour for calculating the moments (as in https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=moments)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    #estimate moments
-    M = cv2.moments(cnt)
-    #find the centre of mass from the moments estimation
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_blue(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([110,50,50])
-    upper = np.array([130,255,255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_green(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([50, 100, 100])
-    upper = np.array([70,255,255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_red(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([0,100,100])
-    upper = np.array([10, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
-
-  def detect_orange(self, image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([9,100,100])
-    upper = np.array([29, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    #cv2.imwrite('mask_orange.png', mask)
-    '''This part has to be changed to recognize whether it is a circle or not'''
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
-    closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    ret, thresh = cv2.threshold(closing, 127, 255, 0)
-    contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    cx = int(M['m10']/M['m00'])
-    cy = int(M['m01']/M['m00'])
-    return np.array([cx, cy])
+  def position_joint4(self, current_time):
+    #joint 4 rotates around the x axis
+    #the sinusoidal movement would be visible from camera 1 on the yz plane
+    j4 = float((np.pi/2) * np.sin(np.pi/20 * current_time))
+    return j4
 
   def detect_joint_angles(self, image):
-    center = self.detect_yellow(image)
-    circle1Pos = self.detect_blue(image)
-    circle2Pos = self.detect_green(image)
-    circle3Pos = self.detect_red(image)
-    ja1 = np.arctan((center[0]-circle1Pos[0])/(center[1]-circle1Pos[1]))
-    ja2 = np.arctan((circle1Pos[0]-circle2Pos[0])/(circle1Pos[1]-circle2Pos[1]))-ja1
-    ja3 = np.arctan((circle2Pos[0]-circle3Pos[0])/(circle2Pos[1]-circle3Pos[1]))-ja1-ja2
-    return np.array([ja1, ja2, ja3])
+    center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
+
+    #object_to_be_tracked = detect_colour(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+
+    #Getting divide by zero exception errors in some instances
+    #Need to refactor this
+    joint_angle_1 = np.arctan2((center[0] - circle1Pos[0]),(center[1] - circle1Pos[1]))
+    joint_angle_2 = np.arctan2((circle1Pos[0] - circle2Pos[0]), (circle1Pos[1] - circle2Pos[1])) - joint_angle_1
+    joint_angle_3 = np.arctan2((circle2Pos[0] - circle3Pos[0]), (circle2Pos[1] - circle3Pos[1])) - joint_angle_1 - joint_angle_2
+    
+    return np.array([joint_angle_1, joint_angle_2, joint_angle_3])
+
+  def detect_individual_joint_angles(self, image,assume_zero=False, previous_state=False, predict=False):
+    #flag_center, center = detect_colour(image, self.YELLOW_LOWER, self.YELLOW_UPPER) #Joint 1
+    flag1Pos, circle1Pos = detect_colour(image, self.BLUE_LOWER, self.BLUE_UPPER) #Joint 2 & 3
+    flag2Pos, circle2Pos = detect_colour(image, self.GREEN_LOWER, self.GREEN_UPPER) #Joint 4
+    #flag3Pos, circle3Pos = detect_colour(image, self.RED_LOWER, self.RED_UPPER) #End effector
+    #joint 1 is assumed not to be changing for task 2.1, thus joint 2 and 4 can only be detected from camera 1
+    self.joint3_cam2 = Float64() #if joint 1 does not rotate, joint 3 can be detected only from camera2
+    self.previous_joint3 = Float64()
+    #we assume joint1 is not rotating for task 2.1
+    if flag1Pos == 1 or flag2Pos == 1:
+      #an error has occurred one of the joints is not visible
+      if assume_zero:
+        self.joint3_cam2 = 0.0
+      elif previous_state:
+        self.joint3_cam2 = self.previous_joint3
+      elif predict:
+        pass
+    else:
+      self.joint3_cam2 = np.arctan2((circle2Pos[0] - circle1Pos[0]), (circle1Pos[1] - circle2Pos[1]))
+      self.previous_joint3 = self.joint3_cam2
+
+  def detect_targets(self, image, cube=False, sphere=True):
+    self.cube_coords = Float64MultiArray()
+    self.sphere_coords = Float64MultiArray()
+    contours = detect_colour2(image, self.ORANGE_LOWER, self.ORANGE_UPPER)
+    for contour in contours:
+      if is_cube(contour) and cube:
+        M = cv2.moments(contour)
+        if M['m00'] != 0:
+          self.cube_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+      elif is_sphere and sphere:
+        M = cv2.moments(contour)
+        if M['m00'] != 0:
+          self.sphere_coords = np.array([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
+
+  def robot_clock_tick(self):
+    #send control commands to joints for task 2.1
+    curr_time = np.array([rospy.get_time() - self.time_joint3])
+    """
+    self.joint2 = Float64()
+    self.joint2.data = self.position_joint2(curr_time)
+    self.joint3 = Float64()
+    self.joint3.data = self.position_joint3(curr_time)
+    self.joint4 = Float64()
+    self.joint4.data = self.position_joint4(curr_time)
+    """
 
   # Recieve data, process it, and publish
   def callback2(self,data):
@@ -144,25 +210,34 @@ class image_converter:
 
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy2.png', self.cv_image2)
-    #im2=cv2.imshow('window2', self.cv_image2)
-    #cv2.waitKey(1)
+    im2=cv2.imshow('window2', self.cv_image2)
+    cv2.waitKey(1)
 
     #detect joints angles from camera
-    self.joints = Float64MultiArray()
-    self.joints.data = self.detect_joint_angles(self.cv_image2)
-
-    #send control commands to joints for task 2.1
-    self.joint3 = Float64()
-    self.joint3.data = self.position_joint3()
+    #self.joints = Float64MultiArray()
+    #self.joints.data = self.detect_joint_angles(self.cv_image2)
+    self.detect_individual_joint_angles(self.cv_image2,previous_state=False, predict=False)
+    #send sinusoindal value to joints
+    self.robot_clock_tick()
+    #detect coordinate of the spherical target
+    self.detect_targets(self.cv_image2)
 
     # Publish the results
     try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
+      #publish joint position according to sinusoidal trend
+      self.robot_joint2_pub.publish(self.joint2)
       self.robot_joint3_pub.publish(self.joint3)
+      self.robot_joint4_pub.publish(self.joint4)
+      #publish the joint position calculated using vision
+      self.joint3_cam2_pub.publish(self.joint3_cam2)
+      #publish the target position calculated using vision
+      self.sphere_target_x_pub.publish(self.sphere_coords[0])
+      self.sphere_target_z_pub.publish(self.sphere_coords[1])
     except CvBridgeError as e:
       print(e)
 
-    # call the class
+# call the class
 def main(args):
   ic = image_converter()
   try:
